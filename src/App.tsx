@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { SetupPanel } from "./features/validator-registration/components/SetupPanel";
 import { ExecutionPanel } from "./features/validator-registration/components/ExecutionPanel";
@@ -15,9 +15,29 @@ import { useWalletConnection } from "./features/validator-registration/hooks/use
 import { createBatchPlan } from "./features/validator-registration/utils/batching";
 
 function App() {
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [network, setNetwork] = useState<NetworkValue>("mainnet");
   const [keystorePassword, setKeystorePassword] = useState("");
   const [depositAmountEth, setDepositAmountEth] = useState("0");
+
+  useEffect(() => {
+    const storedTheme = localStorage.getItem("ssv-assistant-theme");
+
+    if (storedTheme === "light" || storedTheme === "dark") {
+      setTheme(storedTheme);
+      return;
+    }
+
+    const prefersDark =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches;
+    setTheme(prefersDark ? "dark" : "light");
+  }, []);
+
+  useEffect(() => {
+    document.body.dataset.theme = theme;
+    localStorage.setItem("ssv-assistant-theme", theme);
+  }, [theme]);
 
   const selectedNetwork = getNetworkOption(network);
 
@@ -121,7 +141,21 @@ function App() {
   return (
     <div className="app-shell">
       <header className="hero">
-        <p className="eyebrow">SSV Validator Operations</p>
+        <div className="hero-top">
+          <p className="eyebrow">SSV Validator Operations</p>
+          <button
+            type="button"
+            className="theme-toggle"
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+            onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+          >
+            <span className="theme-toggle-track" aria-hidden="true">
+              <span className="theme-icon theme-icon-sun">☀</span>
+              <span className="theme-icon theme-icon-moon">🌙</span>
+              <span className="theme-toggle-thumb" />
+            </span>
+          </button>
+        </div>
         <h1>Keyshare Registration Console</h1>
         <p className="hero-copy">
           Draft and queue validator registration transactions from EIP-2335

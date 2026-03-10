@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inconsolata:wght@400;600&family=Manrope:wght@400;500;600;700;800&display=swap");
 
 :root {
   --bg-soft: #f3f7ff;
@@ -11,19 +11,63 @@
   --accent-warm: #1d8eff;
   --success: #0f8b64;
   --warning: #98612f;
+  --bg-radial-a: rgba(21, 101, 255, 0.2);
+  --bg-radial-b: rgba(29, 142, 255, 0.18);
+  --bg-grad-start: #f3f7ff;
+  --bg-grad-mid: #edf4ff;
+  --bg-grad-end: #f4f9ff;
+  --grid-line: rgba(16, 32, 40, 0.03);
+  --surface-soft: rgba(15, 31, 61, 0.06);
+  --pending-fg: #35517d;
+  --pending-bg: rgba(53, 81, 125, 0.14);
+  --ok-fg: #0f8b64;
+  --ok-bg: rgba(15, 139, 100, 0.14);
+  --btn-secondary-bg: rgba(15, 31, 61, 0.08);
+  --btn-secondary-fg: #0f1f3d;
+  --btn-secondary-border: rgba(15, 31, 61, 0.14);
+  --panel-strong: rgba(255, 255, 255, 0.9);
+  --surface-card: rgba(255, 255, 255, 0.78);
+  --surface-card-strong: rgba(255, 255, 255, 0.9);
 
-  font-family: "Sora", "Trebuchet MS", sans-serif;
+  font-family: "Manrope", "Trebuchet MS", sans-serif;
   font-size: 16px;
   line-height: 1.5;
   font-weight: 400;
-  color: var(--ink);
-  background-color: var(--bg-soft);
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+}
+
+body[data-theme="dark"] {
+  --bg-soft: #011627;
+  --ink: #f4f7fa;
+  --ink-muted: #cbd3e5;
+  --panel: rgba(11, 42, 60, 0.82);
+  --line: rgba(230, 234, 247, 0.2);
+  --accent: #1ba5f8;
+  --accent-strong: #76c8fb;
+  --accent-warm: #49b6f9;
+  --success: #08c858;
+  --warning: #f4ad63;
+  --bg-radial-a: rgba(27, 165, 248, 0.22);
+  --bg-radial-b: rgba(3, 72, 114, 0.36);
+  --bg-grad-start: #011627;
+  --bg-grad-mid: #062031;
+  --bg-grad-end: #0b2a3c;
+  --grid-line: rgba(230, 234, 247, 0.05);
+  --surface-soft: rgba(230, 234, 247, 0.08);
+  --pending-fg: #9cc4ff;
+  --pending-bg: rgba(118, 200, 251, 0.2);
+  --ok-fg: #68e3a7;
+  --ok-bg: rgba(8, 200, 88, 0.2);
+  --btn-secondary-bg: rgba(230, 234, 247, 0.12);
+  --btn-secondary-fg: #f4f7fa;
+  --btn-secondary-border: rgba(230, 234, 247, 0.28);
+  --panel-strong: rgba(11, 42, 60, 0.92);
+  --surface-card: rgba(6, 32, 49, 0.82);
+  --surface-card-strong: rgba(8, 37, 56, 0.9);
 }
 
 * {
@@ -33,6 +77,9 @@
 body {
   margin: 0;
   min-height: 100vh;
+  color: var(--ink);
+  background-color: var(--bg-soft);
+  transition: color 160ms ease, background-color 160ms ease;
 }
 
 body::before {
@@ -41,9 +88,15 @@ body::before {
   inset: 0;
   z-index: -2;
   background:
-    radial-gradient(circle at 18% 12%, rgba(21, 101, 255, 0.2), transparent 52%),
-    radial-gradient(circle at 88% 0%, rgba(29, 142, 255, 0.18), transparent 44%),
-    linear-gradient(160deg, #f3f7ff 0%, #edf4ff 44%, #f4f9ff 100%);
+    radial-gradient(circle at 18% 12%, var(--bg-radial-a), transparent 52%),
+    radial-gradient(circle at 88% 0%, var(--bg-radial-b), transparent 44%),
+    linear-gradient(
+      160deg,
+      var(--bg-grad-start) 0%,
+      var(--bg-grad-mid) 44%,
+      var(--bg-grad-end) 100%
+    );
+  transition: background 180ms ease;
 }
 
 body::after {
@@ -52,8 +105,8 @@ body::after {
   inset: 0;
   z-index: -1;
   background-image:
-    linear-gradient(to right, rgba(16, 32, 40, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(16, 32, 40, 0.03) 1px, transparent 1px);
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   background-size: 32px 32px;
   opacity: 0.5;
   pointer-events: none;
@@ -66,10 +119,10 @@ body::after {
 .app-shell {
   max-width: 1160px;
   margin: 0 auto;
-  padding: 2.4rem 1.2rem 2rem;
+  padding: 2.2rem 1.2rem 1.8rem;
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: 1rem;
   animation: fade-in 420ms ease-out;
 }
 
@@ -77,6 +130,77 @@ body::after {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.theme-toggle {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  width: 52px;
+  height: 30px;
+  padding: 0;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.theme-toggle:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  outline-offset: 2px;
+}
+
+.theme-toggle-track {
+  width: 38px;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 24%, var(--panel));
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+  transition: background 160ms ease;
+}
+
+.theme-icon {
+  font-size: 0.58rem;
+  line-height: 1;
+  color: color-mix(in srgb, var(--ink) 72%, transparent);
+  z-index: 1;
+  transition: color 160ms ease;
+}
+
+.theme-icon-moon {
+  color: color-mix(in srgb, var(--accent-strong) 84%, transparent);
+}
+
+.theme-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--accent-strong);
+  transition: transform 160ms ease, background 160ms ease;
+  z-index: 2;
+}
+
+body[data-theme="dark"] .theme-toggle-thumb {
+  transform: translateX(20px);
 }
 
 .eyebrow {
@@ -93,6 +217,8 @@ body::after {
   font-size: clamp(1.6rem, 3vw, 2.45rem);
   line-height: 1.15;
   letter-spacing: -0.02em;
+  color: var(--ink);
+  font-weight: 800;
 }
 
 .hero-copy {
@@ -111,7 +237,7 @@ body::after {
 .card {
   border: 1px solid var(--line);
   border-radius: 20px;
-  padding: 1.2rem;
+  padding: 1.05rem;
   background: var(--panel);
   backdrop-filter: blur(8px);
   box-shadow: 0 18px 50px rgba(16, 32, 40, 0.09);
@@ -119,6 +245,10 @@ body::after {
   height: 100%;
   display: flex;
   flex-direction: column;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .setup-card {
@@ -132,16 +262,18 @@ body::after {
 .card h2 {
   margin: 0;
   font-size: 1.2rem;
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .section-copy {
-  margin: 0.45rem 0 0;
+  margin: 0.38rem 0 0;
   color: var(--ink-muted);
   font-size: 0.92rem;
 }
 
 .field-block {
-  margin-top: 1rem;
+  margin-top: 0.85rem;
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
@@ -160,15 +292,16 @@ select {
   width: 100%;
   border-radius: 12px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--panel-strong);
   color: var(--ink);
   padding: 0.7rem 0.82rem;
   font: inherit;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
 input:focus,
 select:focus {
-  outline: 2px solid rgba(15, 118, 110, 0.25);
+  outline: 2px solid color-mix(in srgb, var(--accent) 28%, transparent);
   border-color: var(--accent);
 }
 
@@ -226,8 +359,8 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0.35rem 0.5rem;
-  background: rgba(16, 32, 40, 0.05);
-  font-family: "IBM Plex Mono", "Consolas", monospace;
+  background: var(--surface-soft);
+  font-family: "Inconsolata", "Consolas", monospace;
   font-size: 0.78rem;
 }
 
@@ -281,7 +414,7 @@ select:focus {
 }
 
 .operator-id-input {
-  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-family: "Inconsolata", "Consolas", monospace;
 }
 
 .operator-id-input.invalid {
@@ -300,7 +433,7 @@ select:focus {
   padding: 0.32rem 0.62rem;
   background: rgba(21, 101, 255, 0.08);
   color: var(--accent-strong);
-  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-family: "Inconsolata", "Consolas", monospace;
   font-size: 0.75rem;
 }
 
@@ -315,17 +448,17 @@ select:focus {
   border-radius: 999px;
   padding: 0.35rem 0.62rem;
   font-size: 0.76rem;
-  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-family: "Inconsolata", "Consolas", monospace;
 }
 
 .wallet-pill.connected {
-  color: #166f45;
-  background: rgba(31, 138, 76, 0.14);
+  color: var(--ok-fg);
+  background: var(--ok-bg);
 }
 
 .wallet-pill.disconnected {
-  color: #6d4b2f;
-  background: rgba(134, 96, 58, 0.13);
+  color: var(--pending-fg);
+  background: var(--pending-bg);
 }
 
 .stats-grid {
@@ -339,10 +472,11 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0.62rem 0.68rem;
-  background: rgba(255, 255, 255, 0.64);
+  background: var(--surface-card);
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  transition: background 160ms ease, border-color 160ms ease;
 }
 
 .stat-card span {
@@ -366,7 +500,8 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 0.78rem;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--surface-card);
+  transition: background 160ms ease, border-color 160ms ease;
 }
 
 .queue-header {
@@ -399,7 +534,8 @@ select:focus {
   align-items: center;
   gap: 0.45rem;
   font-size: 0.82rem;
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--surface-card-strong);
+  transition: background 160ms ease, border-color 160ms ease;
 }
 
 .batch-state {
@@ -408,18 +544,18 @@ select:focus {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-size: 0.67rem;
-  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-family: "Inconsolata", "Consolas", monospace;
   justify-self: end;
 }
 
 .batch-state.ready {
-  color: #166f45;
-  background: rgba(31, 138, 76, 0.15);
+  color: var(--ok-fg);
+  background: var(--ok-bg);
 }
 
 .batch-state.queued {
-  color: #6d4b2f;
-  background: rgba(134, 96, 58, 0.13);
+  color: var(--pending-fg);
+  background: var(--pending-bg);
 }
 
 .batch-state.submitting {
@@ -428,8 +564,8 @@ select:focus {
 }
 
 .batch-state.confirmed {
-  color: #166f45;
-  background: rgba(31, 138, 76, 0.15);
+  color: var(--ok-fg);
+  background: var(--ok-bg);
 }
 
 .batch-state.failed {
@@ -438,7 +574,7 @@ select:focus {
 }
 
 .tx-link {
-  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-family: "Inconsolata", "Consolas", monospace;
   font-size: 0.74rem;
   color: var(--accent-strong);
   text-decoration: none;
@@ -476,7 +612,8 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 0.78rem;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--surface-card);
+  transition: background 160ms ease, border-color 160ms ease;
 }
 
 .operator-table ul {
@@ -496,7 +633,7 @@ select:focus {
   grid-template-columns: 0.4fr 1.8fr auto;
   gap: 0.4rem;
   align-items: center;
-  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-family: "Inconsolata", "Consolas", monospace;
   font-size: 0.76rem;
 }
 
@@ -505,11 +642,12 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 0.78rem;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--surface-card);
   flex: 1;
   min-height: 210px;
   display: flex;
   flex-direction: column;
+  transition: background 160ms ease, border-color 160ms ease;
 }
 
 .activity-feed ul {
@@ -563,12 +701,17 @@ select:focus {
 
 .button {
   border: 1px solid transparent;
-  border-radius: 12px;
-  padding: 0.62rem 0.95rem;
+  border-radius: 10px;
+  padding: 0.58rem 0.9rem;
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: transform 160ms ease, box-shadow 160ms ease;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
 }
 
 .button:not(:disabled):hover {
@@ -587,8 +730,16 @@ select:focus {
 }
 
 .button.secondary {
-  background: rgba(16, 32, 40, 0.08);
-  color: var(--ink);
+  background: var(--btn-secondary-bg);
+  color: var(--btn-secondary-fg);
+  border-color: var(--btn-secondary-border);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--btn-secondary-border) 50%, transparent);
+}
+
+body[data-theme="dark"] .button.secondary:not(:disabled) {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--btn-secondary-border) 72%, transparent),
+    0 8px 16px rgba(1, 22, 39, 0.28);
 }
 
 .button.accent {
@@ -611,17 +762,17 @@ select:focus {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-size: 0.69rem;
-  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-family: "Inconsolata", "Consolas", monospace;
 }
 
 .step-list li.complete {
-  color: #166f45;
-  background: rgba(31, 138, 76, 0.14);
+  color: var(--ok-fg);
+  background: var(--ok-bg);
 }
 
 .step-list li.pending {
-  color: #6d4b2f;
-  background: rgba(134, 96, 58, 0.13);
+  color: var(--pending-fg);
+  background: var(--pending-bg);
 }
 
 .hint {
@@ -698,6 +849,11 @@ select:focus {
 
   .actions .button {
     width: 100%;
+  }
+
+  .hero-top {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .step-list {
