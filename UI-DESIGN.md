@@ -47,7 +47,7 @@ Single-page desktop-first layout with two cards:
 | Network: [ Ethereum Mainnet v ]         | Queue                           |
 | Operators: [5] [6] [7] [8] [+Add]       | Batch 1  Keys 1-80    ready     |
 |                                         | Batch 2  Keys 81-160  queued    |
-| Wallet: [Connect wallet] [Not connected]| Batch 3  Keys 161-165 queued    |
+| Wallet: [Connect via WC] [Not connected] | Batch 3  Keys 161-165 queued    |
 |                                         |                                 |
 |                                         | [Generate keyshares]            |
 |                                         | [Queue registration txs]        |
@@ -64,8 +64,8 @@ Single-page desktop-first layout with two cards:
 - Empty state text: "No keystore files selected yet."
 
 ### Wallet connection
-- Uses injected wallet providers through `viem` wallet client wiring.
-- Supports connect/disconnect local session states and network switching.
+- Uses WalletConnect provider + `viem` custom transport.
+- Supports connect/disconnect session states, chain change events, and account changes.
 
 ### Network selector
 - Dropdown values:

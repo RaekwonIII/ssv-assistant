@@ -66,9 +66,12 @@ The desktop tool should reduce setup friction and prevent invalid submissions by
 
 ### FR-03 Wallet connection
 
-- Integrate EVM wallet connection through common web3 connectors (viem-compatible stack).
+- Integrate EVM wallet connection through WalletConnect (`@walletconnect/ethereum-provider` + `viem` custom transport).
+- Require WalletConnect project configuration (`VITE_WALLETCONNECT_PROJECT_ID`).
 - Show connected address and connection status.
 - Block transaction actions when disconnected.
+- Support wallet session lifecycle events (`accountsChanged`, `chainChanged`, `disconnect`).
+- Surface a clear error when the selected wallet does not support switching/adding the target chain.
 
 ### FR-04 Network selection
 
@@ -192,7 +195,7 @@ No backend service is required for MVP.
 
 ## 13) Open questions for iteration
 
-1. Which wallet connection UX should be default in desktop context (injected wallet vs WalletConnect)?
+1. Should we add injected-wallet fallback in environments where extension injection is available?
 2. Should the app support importing directories or only explicit file lists?
 3. Do we require persistence of non-sensitive draft state (network choice, last files) across restarts?
 4. Should we include a dry-run simulation mode before signing real transactions?

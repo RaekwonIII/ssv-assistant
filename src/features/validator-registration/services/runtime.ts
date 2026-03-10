@@ -35,8 +35,28 @@ export type SSVRuntime = {
   };
 };
 
+export type WalletConnectProvider = EIP1193Provider;
+
+type WalletConnectRuntime = {
+  EthereumProvider: {
+    init: (args: {
+      projectId: string;
+      optionalChains: [number, ...number[]];
+      showQrModal: boolean;
+      rpcMap?: Record<number, string>;
+      metadata?: {
+        name: string;
+        description: string;
+        url: string;
+        icons: string[];
+      };
+    }) => Promise<WalletConnectProvider>;
+  };
+};
+
 let viemRuntimePromise: Promise<ViemRuntime> | null = null;
 let ssvRuntimePromise: Promise<SSVRuntime> | null = null;
+let walletConnectRuntimePromise: Promise<WalletConnectRuntime> | null = null;
 
 export async function loadViemRuntime(): Promise<ViemRuntime> {
   if (!viemRuntimePromise) {
@@ -62,4 +82,17 @@ export async function loadSSVRuntime(): Promise<SSVRuntime> {
   }
 
   return ssvRuntimePromise;
+}
+
+export async function loadWalletConnectRuntime(): Promise<WalletConnectRuntime> {
+  if (!walletConnectRuntimePromise) {
+    walletConnectRuntimePromise = import("@walletconnect/ethereum-provider").then(
+      (module) => ({
+        EthereumProvider:
+          module.EthereumProvider as unknown as WalletConnectRuntime["EthereumProvider"],
+      }),
+    );
+  }
+
+  return walletConnectRuntimePromise;
 }

@@ -1,13 +1,14 @@
 import { NetworkOption } from "../model/networks";
 import {
   Address,
+  EIP1193Provider,
   OperatorDetails,
   RuntimeChain,
   RuntimeSdk,
   SdkContext,
 } from "../model/types";
 import { loadSSVRuntime, loadViemRuntime } from "./runtime";
-import { ensureProviderChain, getInjectedProvider } from "./wallet";
+import { ensureProviderChain } from "./wallet";
 
 function getRuntimeChain(runtimeChains: {
   mainnet: RuntimeChain;
@@ -18,29 +19,24 @@ function getRuntimeChain(runtimeChains: {
 
 export async function buildSdkContext(args: {
   walletAddress: Address;
+  provider: EIP1193Provider;
   network: NetworkOption;
   subgraphEndpoint?: string;
   subgraphApiKey?: string;
 }): Promise<SdkContext> {
-  const provider = getInjectedProvider();
-
-  if (!provider) {
-    throw new Error("Injected wallet provider is not available.");
-  }
-
   const [viemRuntime, ssvRuntime] = await Promise.all([
     loadViemRuntime(),
     loadSSVRuntime(),
   ]);
 
-  await ensureProviderChain(provider, args.network);
+  await ensureProviderChain(args.provider, args.network);
 
   const chain = getRuntimeChain(ssvRuntime.chains, args.network);
 
   const walletClient = viemRuntime.createWalletClient({
     account: args.walletAddress,
     chain,
-    transport: viemRuntime.custom(provider),
+    transport: viemRuntime.custom(args.provider),
   });
 
   const publicClient = viemRuntime.createPublicClient({

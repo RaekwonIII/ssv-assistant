@@ -1,41 +1,31 @@
 import { NetworkOption } from "../model/networks";
 import { EIP1193Provider, Eip1193RpcError } from "../model/types";
+import { readErrorMessage } from "../utils/errors";
 
 function chainIdToHex(chainId: number): string {
   return `0x${chainId.toString(16)}`;
 }
 
-function readErrorMessage(error: unknown): string {
-  if (!error) {
-    return "Unknown error";
+export function normalizeChainId(chainId: unknown): number | null {
+  if (typeof chainId === "number" && Number.isFinite(chainId)) {
+    return chainId;
   }
 
-  if (typeof error === "string") {
-    return error;
-  }
+  if (typeof chainId === "string") {
+    const trimmed = chainId.trim();
 
-  if (typeof error === "object" && error !== null && "message" in error) {
-    const candidate = error as { message?: unknown };
-
-    if (typeof candidate.message === "string") {
-      return candidate.message;
+    if (trimmed.length === 0) {
+      return null;
     }
+
+    const parsed = trimmed.startsWith("0x")
+      ? Number.parseInt(trimmed, 16)
+      : Number.parseInt(trimmed, 10);
+
+    return Number.isNaN(parsed) ? null : parsed;
   }
 
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return "Unknown error";
-  }
-}
-
-export function getInjectedProvider(): EIP1193Provider | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const provider = (window as { ethereum?: EIP1193Provider }).ethereum;
-  return provider ?? null;
+  return null;
 }
 
 export async function ensureProviderChain(
@@ -66,25 +56,35 @@ export async function ensureProviderChain(
       switchMessage.includes("4902");
 
     if (!unknownChain) {
-      throw switchError;
+      const message = readErrorMessage(switchError);
+      throw new Error(
+        `Unable to switch wallet to ${network.label}. The connected wallet may not support this network. ${message}`,
+      );
     }
 
-    await provider.request({
-      method: "wallet_addEthereumChain",
-      params: [
-        {
-          chainId: targetChainIdHex,
-          chainName: network.chainName,
-          nativeCurrency: network.nativeCurrency,
-          rpcUrls: [...network.rpcUrls],
-          blockExplorerUrls: network.explorerUrl ? [network.explorerUrl] : [],
-        },
-      ],
-    });
+    try {
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: [
+          {
+            chainId: targetChainIdHex,
+            chainName: network.chainName,
+            nativeCurrency: network.nativeCurrency,
+            rpcUrls: [...network.rpcUrls],
+            blockExplorerUrls: network.explorerUrl ? [network.explorerUrl] : [],
+          },
+        ],
+      });
 
-    await provider.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: targetChainIdHex }],
-    });
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: targetChainIdHex }],
+      });
+    } catch (addOrSwitchError) {
+      const message = readErrorMessage(addOrSwitchError);
+      throw new Error(
+        `Unable to activate ${network.label} on the connected wallet. This wallet may not support custom/test networks. ${message}`,
+      );
+    }
   }
 }

@@ -13,6 +13,7 @@
     "@ssv-labs/ssv-sdk": "github:ssvlabs/ssv-sdk#v1.0.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "@walletconnect/ethereum-provider": "^2.23.8",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "viem": "^2.47.1"
