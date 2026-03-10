@@ -1,16 +1,16 @@
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap");
 
 :root {
-  --bg-soft: #f4f8f7;
-  --ink: #102028;
-  --ink-muted: #4f6570;
+  --bg-soft: #f3f7ff;
+  --ink: #0f1f3d;
+  --ink-muted: #556b8f;
   --panel: rgba(255, 255, 255, 0.82);
-  --line: rgba(16, 32, 40, 0.16);
-  --accent: #0f766e;
-  --accent-strong: #0b5e57;
-  --accent-warm: #c26d1d;
-  --success: #1f8a4c;
-  --warning: #875f3f;
+  --line: rgba(15, 31, 61, 0.16);
+  --accent: #1565ff;
+  --accent-strong: #0b49c2;
+  --accent-warm: #1d8eff;
+  --success: #0f8b64;
+  --warning: #98612f;
 
   font-family: "Sora", "Trebuchet MS", sans-serif;
   font-size: 16px;
@@ -41,9 +41,9 @@ body::before {
   inset: 0;
   z-index: -2;
   background:
-    radial-gradient(circle at 22% 15%, rgba(15, 118, 110, 0.2), transparent 48%),
-    radial-gradient(circle at 88% 0%, rgba(194, 109, 29, 0.16), transparent 44%),
-    linear-gradient(160deg, #f4f8f7 0%, #edf4f1 44%, #f8f5ef 100%);
+    radial-gradient(circle at 18% 12%, rgba(21, 101, 255, 0.2), transparent 52%),
+    radial-gradient(circle at 88% 0%, rgba(29, 142, 255, 0.18), transparent 44%),
+    linear-gradient(160deg, #f3f7ff 0%, #edf4ff 44%, #f4f9ff 100%);
 }
 
 body::after {
@@ -105,7 +105,7 @@ body::after {
   display: grid;
   grid-template-columns: minmax(320px, 1fr) minmax(380px, 1.2fr);
   gap: 1rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .card {
@@ -116,6 +116,9 @@ body::after {
   backdrop-filter: blur(8px);
   box-shadow: 0 18px 50px rgba(16, 32, 40, 0.09);
   animation: rise-up 520ms ease both;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .setup-card {
@@ -171,12 +174,12 @@ select:focus {
 
 .dropzone {
   position: relative;
-  border: 1.5px dashed rgba(15, 118, 110, 0.45);
+  border: 1.5px dashed rgba(21, 101, 255, 0.45);
   border-radius: 14px;
   background: linear-gradient(
     180deg,
-    rgba(15, 118, 110, 0.1),
-    rgba(15, 118, 110, 0.04)
+    rgba(21, 101, 255, 0.1),
+    rgba(21, 101, 255, 0.04)
   );
   padding: 1.25rem 1rem;
   text-align: center;
@@ -292,10 +295,10 @@ select:focus {
 }
 
 .chip {
-  border: 1px solid rgba(15, 118, 110, 0.35);
+  border: 1px solid rgba(21, 101, 255, 0.35);
   border-radius: 999px;
   padding: 0.32rem 0.62rem;
-  background: rgba(15, 118, 110, 0.08);
+  background: rgba(21, 101, 255, 0.08);
   color: var(--accent-strong);
   font-family: "IBM Plex Mono", "Consolas", monospace;
   font-size: 0.75rem;
@@ -421,7 +424,7 @@ select:focus {
 
 .batch-state.submitting {
   color: #0f4d7c;
-  background: rgba(15, 118, 110, 0.14);
+  background: rgba(21, 101, 255, 0.14);
 }
 
 .batch-state.confirmed {
@@ -447,9 +450,9 @@ select:focus {
 
 .status-banner {
   margin-top: 0.9rem;
-  border: 1px solid rgba(15, 118, 110, 0.32);
+  border: 1px solid rgba(21, 101, 255, 0.32);
   border-radius: 12px;
-  background: rgba(15, 118, 110, 0.08);
+  background: rgba(21, 101, 255, 0.08);
   padding: 0.6rem 0.72rem;
   display: flex;
   flex-direction: column;
@@ -503,6 +506,10 @@ select:focus {
   border-radius: 14px;
   padding: 0.78rem;
   background: rgba(255, 255, 255, 0.72);
+  flex: 1;
+  min-height: 210px;
+  display: flex;
+  flex-direction: column;
 }
 
 .activity-feed ul {
@@ -512,6 +519,8 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 0.36rem;
+  overflow: auto;
+  min-height: 0;
 }
 
 .log-item {

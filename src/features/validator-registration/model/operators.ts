@@ -1,4 +1,6 @@
-export const DEFAULT_OPERATOR_INPUTS = ["5", "6", "7", "8"];
+export const MIN_REQUIRED_OPERATOR_COUNT = 4;
+
+export const DEFAULT_OPERATOR_INPUTS = ["", "", "", ""];
 
 export const ALLOWED_OPERATOR_COUNTS = [4, 7, 10, 13] as const;
 

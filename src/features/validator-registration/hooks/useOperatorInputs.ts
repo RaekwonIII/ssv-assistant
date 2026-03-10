@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   DEFAULT_OPERATOR_INPUTS,
   MAX_OPERATOR_COUNT,
+  MIN_REQUIRED_OPERATOR_COUNT,
   validateOperatorInputs,
 } from "../model/operators";
 
@@ -39,7 +40,10 @@ export function useOperatorInputs() {
 
   const removeOperatorInput = (index: number) => {
     setOperatorInputs((current) => {
-      if (current.length <= 1) {
+      if (
+        index < MIN_REQUIRED_OPERATOR_COUNT ||
+        current.length <= MIN_REQUIRED_OPERATOR_COUNT
+      ) {
         return current;
       }
 

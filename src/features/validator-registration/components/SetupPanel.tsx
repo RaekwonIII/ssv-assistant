@@ -1,6 +1,10 @@
 import { ChangeEvent, DragEvent } from "react";
 import { NETWORK_OPTIONS, NetworkValue } from "../model/networks";
-import { ALLOWED_OPERATOR_COUNTS, MAX_OPERATOR_COUNT } from "../model/operators";
+import {
+  ALLOWED_OPERATOR_COUNTS,
+  MAX_OPERATOR_COUNT,
+  MIN_REQUIRED_OPERATOR_COUNT,
+} from "../model/operators";
 import { Address, FileParseReport } from "../model/types";
 import { shortenAddress } from "../utils/format";
 
@@ -144,6 +148,10 @@ export function SetupPanel(props: SetupPanelProps) {
         <p className="hint">
           Allowed sizes: {ALLOWED_OPERATOR_COUNTS.join(", ")} operators.
         </p>
+        <p className="hint">
+          The first {MIN_REQUIRED_OPERATOR_COUNT} operator slots are mandatory and
+          cannot be removed.
+        </p>
 
         <div className="operator-input-list">
           {props.operatorInputs.map((value, index) => {
@@ -171,7 +179,8 @@ export function SetupPanel(props: SetupPanelProps) {
                   className="button secondary operator-remove"
                   onClick={() => props.onRemoveOperatorInput(index)}
                   disabled={
-                    props.operatorInputs.length <= 1 ||
+                    index < MIN_REQUIRED_OPERATOR_COUNT ||
+                    props.operatorInputs.length <= MIN_REQUIRED_OPERATOR_COUNT ||
                     props.isGenerating ||
                     props.isRegistering
                   }

@@ -40,7 +40,7 @@ type ExecutionPanelProps = {
 export function ExecutionPanel(props: ExecutionPanelProps) {
   return (
     <section className="card planner-card">
-      <h2>Execution Plan</h2>
+      <h2>Keyshares Generation and Registration</h2>
       <p className="section-copy">
         Review batch sizing and transaction queue behavior before submitting.
       </p>
