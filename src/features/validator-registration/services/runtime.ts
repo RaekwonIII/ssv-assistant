@@ -43,6 +43,10 @@ type WalletConnectRuntime = {
       projectId: string;
       optionalChains: [number, ...number[]];
       showQrModal: boolean;
+      methods?: string[];
+      optionalMethods?: string[];
+      events?: string[];
+      optionalEvents?: string[];
       rpcMap?: Record<number, string>;
       metadata?: {
         name: string;

@@ -6,7 +6,7 @@ import {
   loadViemRuntime,
   loadWalletConnectRuntime,
 } from "../services/runtime";
-import { ensureProviderChain, normalizeChainId } from "../services/wallet";
+import { normalizeChainId } from "../services/wallet";
 import { readErrorMessage } from "../utils/errors";
 import { shortenAddress } from "../utils/format";
 
@@ -113,6 +113,18 @@ export function useWalletConnection(args: UseWalletConnectionArgs) {
       projectId,
       optionalChains,
       showQrModal: true,
+      methods: [
+        "eth_accounts",
+        "eth_requestAccounts",
+        "eth_sendTransaction",
+        "personal_sign",
+      ],
+      optionalMethods: [
+        "wallet_switchEthereumChain",
+        "wallet_addEthereumChain",
+      ],
+      events: ["accountsChanged", "chainChanged"],
+      optionalEvents: ["disconnect", "message", "connect"],
       rpcMap,
       metadata: {
         name: "SSV Assistant",
@@ -136,13 +148,11 @@ export function useWalletConnection(args: UseWalletConnectionArgs) {
       const viemRuntime = await loadViemRuntime();
       const provider = await initializeWalletConnectProvider();
 
-      if (provider.connect) {
-        await provider.connect({ optionalChains: [network.chainId] });
-      } else if (provider.enable) {
+      if (provider.enable) {
         await provider.enable();
+      } else if (provider.connect) {
+        await provider.connect();
       }
-
-      await ensureProviderChain(provider, network);
 
       const accounts = (await provider.request({
         method: "eth_requestAccounts",
@@ -153,18 +163,38 @@ export function useWalletConnection(args: UseWalletConnectionArgs) {
       }
 
       const connected = viemRuntime.getAddress(accounts[0]);
+      const chainIdRaw = await provider.request({ method: "eth_chainId" });
+      const parsedChainId = normalizeChainId(chainIdRaw);
+
       setWalletAddress(connected);
-      setWalletChainId(network.chainId);
+      setWalletChainId(parsedChainId);
       setWalletProvider(provider);
 
       args.appendActivity(
         "success",
         `Connected ${shortenAddress(connected)} via WalletConnect on ${network.label}.`,
       );
+
+      if (parsedChainId !== null && parsedChainId !== network.chainId) {
+        args.appendActivity(
+          "info",
+          `Wallet is currently on chain ${parsedChainId}. Target network is ${network.chainId}; network switch may be required before submitting transactions.`,
+        );
+      }
     } catch (error) {
       const message = readErrorMessage(error);
-      setConnectError(message);
-      args.appendActivity("error", message);
+      const normalized = message.toLowerCase();
+      const isRejectedMethods =
+        normalized.includes("rejected methods") ||
+        normalized.includes("rejected mehtods") ||
+        normalized.includes("user_rejected_methods");
+
+      const connectMessage = isRejectedMethods
+        ? "Wallet rejected one or more requested methods during WalletConnect session setup. This usually means the wallet does not support the requested capabilities. Try reconnecting with a different wallet app or update MetaMask mobile."
+        : message;
+
+      setConnectError(connectMessage);
+      args.appendActivity("error", connectMessage);
     }
   };
 

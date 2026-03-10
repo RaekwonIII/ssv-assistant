@@ -33,11 +33,12 @@ export async function ensureProviderChain(
   network: NetworkOption,
 ): Promise<void> {
   const targetChainIdHex = chainIdToHex(network.chainId);
-  const currentChainIdHex = (await provider.request({
+  const currentChainIdRaw = await provider.request({
     method: "eth_chainId",
-  })) as string;
+  });
+  const currentChainId = normalizeChainId(currentChainIdRaw);
 
-  if (currentChainIdHex.toLowerCase() === targetChainIdHex.toLowerCase()) {
+  if (currentChainId === network.chainId) {
     return;
   }
 
@@ -48,7 +49,8 @@ export async function ensureProviderChain(
     });
   } catch (switchError) {
     const rpcError = switchError as Eip1193RpcError;
-    const switchMessage = readErrorMessage(switchError).toLowerCase();
+    const switchReadable = readErrorMessage(switchError);
+    const switchMessage = switchReadable.toLowerCase();
     const unknownChain =
       rpcError.code === 4902 ||
       switchMessage.includes("unrecognized") ||
@@ -56,9 +58,19 @@ export async function ensureProviderChain(
       switchMessage.includes("4902");
 
     if (!unknownChain) {
-      const message = readErrorMessage(switchError);
+      const rejectedMethods =
+        switchMessage.includes("rejected methods") ||
+        switchMessage.includes("rejected mehtods") ||
+        switchMessage.includes("user_rejected_methods");
+
+      if (rejectedMethods) {
+        throw new Error(
+          `The connected wallet did not approve chain-switch methods for this WalletConnect session. Please switch to ${network.label} in your wallet app manually, then reconnect.`,
+        );
+      }
+
       throw new Error(
-        `Unable to switch wallet to ${network.label}. The connected wallet may not support this network. ${message}`,
+        `Unable to switch wallet to ${network.label}. The connected wallet may not support this network. ${switchReadable}`,
       );
     }
 

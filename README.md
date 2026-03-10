@@ -22,31 +22,75 @@ Batch size limits currently implemented:
 - 10 operators -> 30 keys / tx
 - 13 operators -> 20 keys / tx
 
-## Development
+## Development (Bun)
 
 Install dependencies:
 
 ```bash
-npm install
+bun install
 ```
 
 Run frontend dev server:
 
 ```bash
-npm run dev
+bun run dev
 ```
 
 Run Tauri desktop app:
 
 ```bash
-npm run tauri dev
+bun run tauri dev
 ```
 
 Build production assets:
 
 ```bash
-npm run build
+bun run build
 ```
+
+Run unit tests:
+
+```bash
+bun run test
+```
+
+## Desktop builds
+
+Build desktop installers/binaries for the current host platform:
+
+```bash
+bun run tauri build
+```
+
+Build for specific targets (cross-compilation toolchains required):
+
+```bash
+# Windows (x64)
+bun run tauri build --target x86_64-pc-windows-msvc
+
+# Linux (x64)
+bun run tauri build --target x86_64-unknown-linux-gnu
+
+# macOS Intel
+bun run tauri build --target x86_64-apple-darwin
+
+# macOS Apple Silicon
+bun run tauri build --target aarch64-apple-darwin
+```
+
+Bundled deliverables are generated under `src-tauri/target/<target>/release/bundle/`.
+
+### Build matrix notes
+
+- Cross-target builds require the matching Rust target toolchains and platform
+  dependencies installed.
+- For production releases, signing is typically required:
+  - macOS: Developer ID signing + notarization.
+  - Windows: Authenticode signing for installer trust and SmartScreen reputation.
+  - Linux: signing is optional in many channels, but recommended per package
+    distribution flow.
+- macOS universal app bundles generally require building both macOS targets and
+  combining/signing artifacts in your release pipeline.
 
 ## Environment variables
 
@@ -77,3 +121,9 @@ Notes:
 - `src/features/validator-registration/services/` wallet + SDK integrations.
 - `src/features/validator-registration/model/` domain constants/types.
 - `src/features/validator-registration/utils/` parsing, batching, formatting helpers.
+
+## References
+
+- Tauri v2 start docs: `https://v2.tauri.app/start/`
+- Tauri distribute/build docs: `https://v2.tauri.app/distribute/`
+- Tauri CLI reference: `https://v2.tauri.app/reference/cli/`
