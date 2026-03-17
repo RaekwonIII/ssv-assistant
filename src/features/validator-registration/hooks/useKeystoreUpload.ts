@@ -76,6 +76,14 @@ export function useKeystoreUpload(args: UseKeystoreUploadArgs) {
     setIsDragging(false);
   };
 
+  const resetUploads = () => {
+    latestUploadTokenRef.current += 1;
+    setSelectedFiles([]);
+    setKeystoreEntries([]);
+    setFileParseReports([]);
+    setIsDragging(false);
+  };
+
   return {
     selectedFiles,
     keystoreEntries,
@@ -85,5 +93,6 @@ export function useKeystoreUpload(args: UseKeystoreUploadArgs) {
     onDrop,
     onDragOver,
     onDragLeave,
+    resetUploads,
   };
 }

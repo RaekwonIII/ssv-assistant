@@ -44,6 +44,12 @@ export type ActivityEvent = {
   message: string;
 };
 
+export type WalletActionPrompt = {
+  title: string;
+  message: string;
+  state?: "pending" | "success";
+};
+
 export type KeystoreEntry = {
   id: string;
   fileName: string;

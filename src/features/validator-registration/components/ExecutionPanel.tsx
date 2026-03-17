@@ -1,11 +1,15 @@
-import { getTxExplorerUrl, NetworkOption } from "../model/networks";
+import {
+  getOperatorExplorerUrl,
+  getTxExplorerUrl,
+  NetworkOption,
+} from "../model/networks";
 import {
   ActivityEvent,
   Batch,
   OperatorSnapshot,
   ValidationSummary,
 } from "../model/types";
-import { shortenAddress } from "../utils/format";
+import { shortenAddress, shortenPublicKey } from "../utils/format";
 
 type SetupStep = {
   label: string;
@@ -25,19 +29,48 @@ type ExecutionPanelProps = {
   validationSummary: ValidationSummary | null;
   operatorSnapshot: OperatorSnapshot[] | null;
   selectedNetwork: NetworkOption;
+  hasGeneratedKeyshares: boolean;
   canGenerateKeyshares: boolean;
   canQueueTransactions: boolean;
   isGenerating: boolean;
   isRegistering: boolean;
+  registrationPhase: "idle" | "running" | "completed" | "failed";
+  queuedBatchCount: number;
+  confirmedBatchCount: number;
+  canStartNewRun: boolean;
   onGenerateKeyshares: () => void;
   onQueueTransactions: () => void;
-  generationError: string | null;
-  registrationError: string | null;
+  onStartNewRun: () => void;
+  generateDisabledReason: string | null;
+  queueDisabledReason: string | null;
   activityLog: ActivityEvent[];
   setupSteps: SetupStep[];
 };
 
 export function ExecutionPanel(props: ExecutionPanelProps) {
+  const registrationStatusLabel =
+    props.registrationPhase === "running"
+      ? "Running"
+      : props.registrationPhase === "completed"
+        ? "Completed"
+        : props.registrationPhase === "failed"
+          ? "Failed"
+          : "Not started";
+  const showNextStepHint =
+    props.hasGeneratedKeyshares && !props.isGenerating && !props.canStartNewRun;
+  const isKeysharesReadyState =
+    props.hasGeneratedKeyshares && props.registrationPhase === "idle";
+  const hasValidationSummary = props.validationSummary !== null;
+  const validationSummary = props.validationSummary;
+  const generateButtonClass = `button ${
+    props.hasGeneratedKeyshares ? "secondary" : "primary"
+  }`;
+  const generateButtonLabel = props.isGenerating
+    ? "Generating keyshares..."
+    : props.hasGeneratedKeyshares
+      ? "Regenerate keyshares"
+      : "Generate keyshares";
+
   return (
     <section className="card planner-card">
       <h2>Keyshares Generation and Registration</h2>
@@ -74,6 +107,10 @@ export function ExecutionPanel(props: ExecutionPanelProps) {
       </div>
 
       <div className="field-block">
+        <div className="step-heading">
+          <span className="step-chip">Step 5</span>
+          <strong>Set Deposit Amount</strong>
+        </div>
         <label className="field-label" htmlFor="deposit-amount">
           Deposit amount per transaction (ETH)
         </label>
@@ -84,45 +121,130 @@ export function ExecutionPanel(props: ExecutionPanelProps) {
           onChange={(event) => props.onDepositAmountChange(event.target.value)}
           placeholder="0.0"
         />
-        <p className="hint">
-          The SDK passes this value as `depositAmount` in each
-          `registerValidators` call.
-        </p>
       </div>
 
-      {props.validationSummary ? (
-        <div className="status-banner">
-          <span>Validation</span>
-          <strong>{props.validationSummary.available} available</strong>
-          <small>
-            {props.validationSummary.registered} registered, {" "}
-            {props.validationSummary.incorrect} incorrect
-          </small>
+      <div className="field-block">
+        <div className="step-heading">
+          <span className="step-chip">Step 6</span>
+          <strong>Generate Keyshares</strong>
         </div>
-      ) : null}
+        <button
+          type="button"
+          className={generateButtonClass}
+          disabled={!props.canGenerateKeyshares}
+          onClick={props.onGenerateKeyshares}
+        >
+          {generateButtonLabel}
+        </button>
+        {!props.canGenerateKeyshares && props.generateDisabledReason ? (
+          <p className="hint action-hint">{props.generateDisabledReason}</p>
+        ) : null}
+      </div>
 
-      {props.operatorSnapshot ? (
-        <div className="operator-table">
-          <div className="queue-header">
-            <span>Fetched operators</span>
-            <span>Data from sdk.api.getOperators</span>
-          </div>
-          <ul>
-            {props.operatorSnapshot.map((operator) => (
-              <li key={operator.id}>
-                <span>#{operator.id}</span>
-                <span>{shortenAddress(operator.publicKey)}</span>
-                <span>{operator.isPrivate ? "private" : "public"}</span>
-              </li>
-            ))}
-          </ul>
+      <div
+        className={`status-banner queue-status ${
+          hasValidationSummary ? props.registrationPhase : "neutral"
+        } ${isKeysharesReadyState ? "keyshares-ready" : ""}`}
+      >
+        <span>{isKeysharesReadyState ? "Keyshares" : "Validation"}</span>
+        <strong>
+          {isKeysharesReadyState
+            ? "Keyshares ready"
+            : hasValidationSummary
+              ? `${validationSummary?.available ?? 0} available`
+              : "Not started"}
+        </strong>
+        <small>
+          {hasValidationSummary
+            ? `${validationSummary?.available ?? 0} available, ${validationSummary?.registered ?? 0} registered, ${validationSummary?.incorrect ?? 0} incorrect`
+            : "Generate keyshares to run pre-registration checks."}
+        </small>
+        <small>
+          Registration queue {registrationStatusLabel.toLowerCase()}:{" "}
+          {props.confirmedBatchCount}/{props.queuedBatchCount} confirmed batches
+        </small>
+        {props.registrationPhase === "idle" && props.hasGeneratedKeyshares ? (
+          <small className="status-detail">
+            Next step: click Register validators to submit transactions on-chain.
+          </small>
+        ) : null}
+      </div>
+
+      <div className="operator-table">
+        <div className="queue-header">
+          <span>Fetched operators</span>
         </div>
-      ) : null}
+        {props.operatorSnapshot && props.operatorSnapshot.length > 0 ? (
+          <ul>
+            {props.operatorSnapshot.map((operator) => {
+              const operatorExplorerUrl = getOperatorExplorerUrl(
+                props.selectedNetwork,
+                operator.id,
+              );
+
+              return (
+                <li key={operator.id}>
+                  <span>
+                    {operatorExplorerUrl ? (
+                      <a
+                        href={operatorExplorerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="operator-id-link"
+                      >
+                        #{operator.id}
+                      </a>
+                    ) : (
+                      `#${operator.id}`
+                    )}
+                  </span>
+                  <span>{shortenPublicKey(operator.publicKey)}</span>
+                  <span
+                    className={`operator-visibility-tag ${
+                      operator.isPrivate ? "private" : "public"
+                    }`}
+                  >
+                    {operator.isPrivate ? "private" : "public"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="hint">Operators will appear here after keyshare generation.</p>
+        )}
+      </div>
+
+      <div className="field-block">
+        <div className="step-heading">
+          <span className="step-chip">Step 7</span>
+          <strong>Queue Transactions</strong>
+        </div>
+        <button
+          type="button"
+          className={`button accent ${showNextStepHint ? "next-step" : ""}`}
+          disabled={!props.canStartNewRun && !props.canQueueTransactions}
+          onClick={
+            props.canStartNewRun ? props.onStartNewRun : props.onQueueTransactions
+          }
+        >
+          {props.canStartNewRun
+            ? "Register new validators"
+            : props.isRegistering
+              ? "Registering validators..."
+              : "Register validators"}
+        </button>
+        {!props.canStartNewRun &&
+        !props.canQueueTransactions &&
+        props.queueDisabledReason ? (
+          <p className="hint action-hint">{props.queueDisabledReason}</p>
+        ) : null}
+      </div>
 
       <div className="batch-queue">
         <div className="queue-header">
           <span>Transaction queue</span>
-          <span>Status flow: ready - queued - submitting - confirmed</span>
+          <span>Status flow</span>
         </div>
         {props.displayedBatches.length === 0 ? (
           <p className="hint">
@@ -147,38 +269,11 @@ export function ExecutionPanel(props: ExecutionPanelProps) {
                     {shortenAddress(batch.txHash)}
                   </a>
                 ) : null}
-                {batch.error ? <p className="error-text">{batch.error}</p> : null}
               </li>
             ))}
           </ul>
         )}
       </div>
-
-      <div className="actions">
-        <button
-          type="button"
-          className="button primary"
-          disabled={!props.canGenerateKeyshares}
-          onClick={props.onGenerateKeyshares}
-        >
-          {props.isGenerating ? "Generating keyshares..." : "Generate keyshares"}
-        </button>
-        <button
-          type="button"
-          className="button accent"
-          disabled={!props.canQueueTransactions}
-          onClick={props.onQueueTransactions}
-        >
-          {props.isRegistering
-            ? "Submitting registration queue..."
-            : "Queue registration transactions"}
-        </button>
-      </div>
-
-      {props.generationError ? <p className="error-text">{props.generationError}</p> : null}
-      {props.registrationError ? (
-        <p className="error-text">{props.registrationError}</p>
-      ) : null}
 
       <div className="activity-feed">
         <div className="queue-header">
@@ -199,9 +294,9 @@ export function ExecutionPanel(props: ExecutionPanelProps) {
       </div>
 
       <ul className="step-list">
-        {props.setupSteps.map((step) => (
+        {props.setupSteps.map((step, index) => (
           <li key={step.label} className={step.complete ? "complete" : "pending"}>
-            {step.label}
+            Step {index + 1}: {step.label}
           </li>
         ))}
       </ul>

@@ -15,12 +15,22 @@ export function useActivityLog(maxEntries = 12) {
         message,
       };
 
-      return [nextEntry, ...current].slice(0, maxEntries);
+      const withoutDuplicates = current.filter(
+        (entry) => !(entry.level === level && entry.message === message),
+      );
+
+      return [nextEntry, ...withoutDuplicates].slice(0, maxEntries);
     });
+  };
+
+  const clearActivityLog = () => {
+    setActivityLog([]);
+    activityIdRef.current = 0;
   };
 
   return {
     activityLog,
     appendActivity,
+    clearActivityLog,
   };
 }

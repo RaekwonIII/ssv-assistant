@@ -23,6 +23,7 @@ export async function buildSdkContext(args: {
   network: NetworkOption;
   subgraphEndpoint?: string;
   subgraphApiKey?: string;
+  setterContract?: string;
 }): Promise<SdkContext> {
   const [viemRuntime, ssvRuntime] = await Promise.all([
     loadViemRuntime(),
@@ -45,18 +46,34 @@ export async function buildSdkContext(args: {
   });
 
   const hasSubgraphConfig = Boolean(args.subgraphApiKey || args.subgraphEndpoint);
+  const hasSetterOverride = Boolean(args.setterContract?.trim());
+  const setterOverride = hasSetterOverride
+    ? viemRuntime.getAddress(args.setterContract!.trim())
+    : undefined;
 
   const sdk = new ssvRuntime.SSVSDK({
     publicClient: publicClient as never,
     walletClient: walletClient as never,
-    extendedConfig: hasSubgraphConfig
-      ? {
-          subgraph: {
-            endpoint: args.subgraphEndpoint,
-            apiKey: args.subgraphApiKey,
-          },
-        }
-      : undefined,
+    extendedConfig:
+      hasSubgraphConfig || hasSetterOverride
+        ? {
+            ...(hasSubgraphConfig
+              ? {
+                  subgraph: {
+                    endpoint: args.subgraphEndpoint,
+                    apiKey: args.subgraphApiKey,
+                  },
+                }
+              : {}),
+            ...(setterOverride
+              ? {
+                  contracts: {
+                    setter: setterOverride,
+                  },
+                }
+              : {}),
+          }
+        : undefined,
   }) as RuntimeSdk;
 
   return {

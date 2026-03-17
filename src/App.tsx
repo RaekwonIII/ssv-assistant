@@ -7,6 +7,7 @@ import {
   getNetworkOption,
 } from "./features/validator-registration/model/networks";
 import { getBatchLimitForOperatorCount } from "./features/validator-registration/model/operators";
+import { WalletActionPrompt } from "./features/validator-registration/model/types";
 import { useActivityLog } from "./features/validator-registration/hooks/useActivityLog";
 import { useKeystoreUpload } from "./features/validator-registration/hooks/useKeystoreUpload";
 import { useOperatorInputs } from "./features/validator-registration/hooks/useOperatorInputs";
@@ -19,6 +20,9 @@ function App() {
   const [network, setNetwork] = useState<NetworkValue>("mainnet");
   const [keystorePassword, setKeystorePassword] = useState("");
   const [depositAmountEth, setDepositAmountEth] = useState("0");
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [walletActionPrompt, setWalletActionPrompt] =
+    useState<WalletActionPrompt | null>(null);
 
   useEffect(() => {
     const storedTheme = localStorage.getItem("ssv-assistant-theme");
@@ -41,7 +45,7 @@ function App() {
 
   const selectedNetwork = getNetworkOption(network);
 
-  const { activityLog, appendActivity } = useActivityLog();
+  const { activityLog, appendActivity, clearActivityLog } = useActivityLog();
 
   const {
     operatorInputs,
@@ -49,8 +53,8 @@ function App() {
     selectedOperatorIds,
     duplicateOperatorIds,
     updateOperatorInput,
-    addOperatorInput,
-    removeOperatorInput,
+    setOperatorCount,
+    resetOperatorInputs,
   } = useOperatorInputs();
 
   const {
@@ -62,6 +66,7 @@ function App() {
     onDrop,
     onDragOver,
     onDragLeave,
+    resetUploads,
   } = useKeystoreUpload({
     appendActivity,
   });
@@ -70,11 +75,13 @@ function App() {
     walletAddress,
     walletChainId,
     walletProvider,
+    walletSessionVerified,
     connectError,
     setWalletChainId,
     toggleWalletConnection,
   } = useWalletConnection({
     appendActivity,
+    setWalletActionPrompt,
   });
 
   const operatorCount = operatorInputs.length;
@@ -90,10 +97,11 @@ function App() {
     queueBatches,
     isGenerating,
     isRegistering,
-    generationError,
-    registrationError,
+    registrationPhase,
     canGenerateKeyshares,
     canQueueTransactions,
+    generateDisabledReason,
+    queueDisabledReason,
     handleGenerateKeyshares,
     handleQueueRegistration,
   } = useRegistrationFlow({
@@ -108,6 +116,7 @@ function App() {
     maxKeysPerTx,
     depositAmountEth,
     appendActivity,
+    setWalletActionPrompt,
   });
 
   const validatorCount =
@@ -117,11 +126,23 @@ function App() {
     [validatorCount, maxKeysPerTx],
   );
   const displayedBatches = queueBatches.length > 0 ? queueBatches : plannedBatches;
+  const queuedBatchCount = queueBatches.length;
+  const confirmedBatchCount = queueBatches.filter(
+    (batch) => batch.status === "confirmed",
+  ).length;
+  const hasGeneratedKeyshares = generatedKeyshares.length > 0;
+  const canStartNewRun =
+    registrationPhase === "completed" &&
+    queueBatches.length > 0 &&
+    queueBatches.every((batch) => batch.status === "confirmed");
+  const hasValidDepositValue =
+    depositAmountEth.trim().length > 0 &&
+    Number.isFinite(Number(depositAmountEth)) &&
+    Number(depositAmountEth) >= 0;
 
   const setupSteps = [
-    { label: "Upload keystore", complete: keystoreEntries.length > 0 },
-    { label: "Unlock keystore", complete: keystorePassword.trim().length > 0 },
-    { label: "Connect wallet", complete: walletAddress !== null },
+    { label: "Upload keystores", complete: keystoreEntries.length > 0 },
+    { label: "Enter keystore password", complete: keystorePassword.trim().length > 0 },
     {
       label: "Validate operators",
       complete:
@@ -129,14 +150,36 @@ function App() {
         operatorSnapshot !== null &&
         blockedPrivateOperatorIds.length === 0,
     },
+    {
+      label: "Connect wallet",
+      complete: walletAddress !== null && walletSessionVerified,
+    },
+    {
+      label: "Set deposit amount",
+      complete: hasValidDepositValue,
+    },
     { label: "Generate keyshares", complete: generatedKeyshares.length > 0 },
     {
-      label: "Register batches",
+      label: "Queue registration transactions",
       complete:
         queueBatches.length > 0 &&
         queueBatches.every((batch) => batch.status === "confirmed"),
     },
   ];
+
+  const handleStartNewRegistration = () => {
+    setIsResetConfirmOpen(true);
+  };
+
+  const confirmStartNewRegistration = () => {
+    setIsResetConfirmOpen(false);
+    resetUploads();
+    resetOperatorInputs();
+    setKeystorePassword("");
+    setDepositAmountEth("0");
+    clearActivityLog();
+    appendActivity("info", "Started a new registration flow.");
+  };
 
   return (
     <div className="app-shell">
@@ -179,6 +222,7 @@ function App() {
           privateOperatorIds={privateOperatorIds}
           blockedPrivateOperatorIds={blockedPrivateOperatorIds}
           walletAddress={walletAddress}
+          walletSessionVerified={walletSessionVerified}
           walletChainId={walletChainId}
           selectedNetworkLabel={selectedNetwork.label}
           connectError={connectError}
@@ -190,9 +234,8 @@ function App() {
           onFileInputChange={onFileInputChange}
           onKeystorePasswordChange={setKeystorePassword}
           onNetworkChange={setNetwork}
-          onAddOperatorInput={addOperatorInput}
+          onOperatorCountChange={setOperatorCount}
           onUpdateOperatorInput={updateOperatorInput}
-          onRemoveOperatorInput={removeOperatorInput}
           onToggleWalletConnection={() => toggleWalletConnection(selectedNetwork)}
         />
 
@@ -209,18 +252,73 @@ function App() {
           validationSummary={validationSummary}
           operatorSnapshot={operatorSnapshot}
           selectedNetwork={selectedNetwork}
+          hasGeneratedKeyshares={hasGeneratedKeyshares}
           canGenerateKeyshares={canGenerateKeyshares}
           canQueueTransactions={canQueueTransactions}
           isGenerating={isGenerating}
           isRegistering={isRegistering}
+          registrationPhase={registrationPhase}
+          queuedBatchCount={queuedBatchCount}
+          confirmedBatchCount={confirmedBatchCount}
+          canStartNewRun={canStartNewRun}
           onGenerateKeyshares={() => void handleGenerateKeyshares()}
           onQueueTransactions={() => void handleQueueRegistration()}
-          generationError={generationError}
-          registrationError={registrationError}
+          onStartNewRun={handleStartNewRegistration}
+          generateDisabledReason={generateDisabledReason}
+          queueDisabledReason={queueDisabledReason}
           activityLog={activityLog}
           setupSteps={setupSteps}
         />
       </main>
+      {isResetConfirmOpen ? (
+        <div className="confirm-modal-backdrop" role="presentation">
+          <div className="confirm-modal" role="dialog" aria-modal="true">
+            <h3>Start new registration?</h3>
+            <p>
+              This will clear uploaded keystores, operator inputs, password, deposit
+              amount, queue status, and activity logs.
+            </p>
+            <div className="confirm-modal-actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setIsResetConfirmOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button accent"
+                onClick={confirmStartNewRegistration}
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {walletActionPrompt ? (
+        <div className="wallet-modal-backdrop" role="presentation">
+          <div
+            className="wallet-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-live="polite"
+          >
+            <div className="wallet-modal-header">
+              {walletActionPrompt.state === "success" ? (
+                <span className="wallet-modal-check" aria-hidden="true">
+                  {"\u2713"}
+                </span>
+              ) : (
+                <span className="wallet-modal-spinner" aria-hidden="true" />
+              )}
+              <h3>{walletActionPrompt.title}</h3>
+            </div>
+            <p>{walletActionPrompt.message}</p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

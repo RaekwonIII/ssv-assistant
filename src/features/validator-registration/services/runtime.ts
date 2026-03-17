@@ -27,6 +27,9 @@ export type SSVRuntime = {
         endpoint?: string;
         apiKey?: string;
       };
+      contracts?: {
+        setter?: Address;
+      };
     };
   }) => RuntimeSdk;
   chains: {

@@ -12,12 +12,20 @@ import {
   OperatorSnapshot,
   RuntimeSdk,
   ValidationSummary,
+  WalletActionPrompt,
 } from "../model/types";
 import { buildSdkContext, getPrivateOperatorAccessReport } from "../services/ssv";
 import { loadViemRuntime } from "../services/runtime";
+import { verifyProviderSession } from "../services/wallet";
 import { createBatchPlan, chunkArray } from "../utils/batching";
-import { readErrorMessage } from "../utils/errors";
+import { formatRegistrationQueueError, readErrorMessage } from "../utils/errors";
 import { shortenAddress } from "../utils/format";
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 function parseDepositAmount(
   input: string,
@@ -44,6 +52,7 @@ type UseRegistrationFlowArgs = {
   maxKeysPerTx: number;
   depositAmountEth: string;
   appendActivity: (level: ActivityLevel, message: string) => void;
+  setWalletActionPrompt?: (prompt: WalletActionPrompt | null) => void;
 };
 
 export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
@@ -66,6 +75,9 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
   const [queueBatches, setQueueBatches] = useState<Batch[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [registrationPhase, setRegistrationPhase] = useState<
+    "idle" | "running" | "completed" | "failed"
+  >("idle");
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
 
@@ -73,6 +85,7 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
     setGeneratedKeyshares([]);
     setValidationSummary(null);
     setQueueBatches([]);
+    setRegistrationPhase("idle");
     setGenerationError(null);
     setRegistrationError(null);
   };
@@ -106,12 +119,18 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
       throw new Error("Wallet provider is not initialized.");
     }
 
+    await verifyProviderSession({
+      provider: args.walletProvider,
+      expectedAddress: args.walletAddress,
+    });
+
     const context = await buildSdkContext({
       walletAddress: args.walletAddress,
       provider: args.walletProvider,
       network: args.selectedNetwork,
       subgraphApiKey: import.meta.env.VITE_SSV_SUBGRAPH_API_KEY,
       subgraphEndpoint: import.meta.env.VITE_SSV_SUBGRAPH_ENDPOINT,
+      setterContract: import.meta.env.VITE_SSV_NETWORK_CONTRACT,
     });
 
     args.setWalletChainId(context.chain.id);
@@ -230,6 +249,44 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
     !isGenerating &&
     !isRegistering;
 
+  const generateDisabledReason = (() => {
+    if (args.keystoreEntries.length === 0) return "Upload keystore files first.";
+    if (args.keystorePassword.trim().length === 0) return "Enter the keystore password.";
+    if (args.walletAddress === null || args.walletProvider === null) {
+      return "Connect your wallet first.";
+    }
+    if (!args.operatorValidation.isValid) {
+      return (
+        args.operatorValidation.warning ??
+        "Choose a valid operator set (4, 7, 10, or 13 IDs)."
+      );
+    }
+    if (args.maxKeysPerTx <= 0) return "Operator count does not map to a batch rule.";
+    if (blockedPrivateOperatorIds.length > 0) {
+      return "Resolve private-operator whitelist restrictions before generating.";
+    }
+    if (isGenerating) return "Keyshare generation is in progress.";
+    if (isRegistering) return "Wait for registration queue to finish.";
+    return null;
+  })();
+
+  const queueDisabledReason = (() => {
+    if (generatedKeyshares.length === 0) return "Generate keyshares first.";
+    if (args.walletAddress === null || args.walletProvider === null) {
+      return "Connect your wallet first.";
+    }
+    if (!args.operatorValidation.isValid) {
+      return (
+        args.operatorValidation.warning ??
+        "Choose a valid operator set (4, 7, 10, or 13 IDs)."
+      );
+    }
+    if (args.maxKeysPerTx <= 0) return "Operator count does not map to a batch rule.";
+    if (isGenerating) return "Wait for keyshare generation to finish.";
+    if (isRegistering) return "Registration queue is already running.";
+    return null;
+  })();
+
   const handleGenerateKeyshares = async () => {
     if (!canGenerateKeyshares) {
       return;
@@ -264,7 +321,6 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
         nonce: ownerNonce,
       });
 
-      args.appendActivity("info", "Validating generated keyshares before registration.");
       const validation = await sdk.utils.validateSharesPreRegistration({
         keyshares: generated,
         operatorIds: args.selectedOperatorIds.map((id) => id.toString()),
@@ -329,6 +385,7 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
     }
 
     setRegistrationError(null);
+    setRegistrationPhase("running");
     setIsRegistering(true);
 
     try {
@@ -354,6 +411,10 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
       for (let index = 0; index < shareChunks.length; index += 1) {
         const batchId = index + 1;
         updateBatchStatus(batchId, { status: "submitting", error: undefined });
+        args.setWalletActionPrompt?.({
+          title: "Confirm transaction on device",
+          message: `Approve batch ${batchId}/${shareChunks.length} in your wallet app on your phone.`,
+        });
 
         const transaction = await sdk.clusters.registerValidators({
           args: {
@@ -369,6 +430,10 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
             transaction.hash,
           )}`,
         );
+        args.setWalletActionPrompt?.({
+          title: "Transaction submitted",
+          message: `Batch ${batchId}/${shareChunks.length} submitted. Waiting for on-chain confirmation.`,
+        });
 
         const receipt = await transaction.wait();
 
@@ -381,12 +446,29 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
           "success",
           `Batch ${batchId}/${shareChunks.length} confirmed on ${chain.name}.`,
         );
+        args.appendActivity(
+          "info",
+          `Queue progress: ${batchId}/${shareChunks.length} batch${
+            shareChunks.length === 1 ? "" : "es"
+          } confirmed.`,
+        );
       }
 
-      args.appendActivity("success", "All registration transactions confirmed.");
+      setRegistrationPhase("completed");
+      args.appendActivity(
+        "success",
+        `Queue completed: ${shareChunks.length}/${shareChunks.length} batches confirmed.`,
+      );
+      args.setWalletActionPrompt?.({
+        title: "Registration completed",
+        message: `${shareChunks.length}/${shareChunks.length} batches confirmed on-chain.`,
+        state: "success",
+      });
+      await wait(900);
     } catch (error) {
-      const message = readErrorMessage(error);
+      const message = formatRegistrationQueueError(error);
       setRegistrationError(message);
+      setRegistrationPhase("failed");
 
       setQueueBatches((current) => {
         const inFlight = current.find((batch) => batch.status === "submitting");
@@ -408,6 +490,7 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
 
       args.appendActivity("error", `Registration queue stopped: ${message}`);
     } finally {
+      args.setWalletActionPrompt?.(null);
       setIsRegistering(false);
     }
   };
@@ -422,10 +505,13 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
     queueBatches,
     isGenerating,
     isRegistering,
+    registrationPhase,
     generationError,
     registrationError,
     canGenerateKeyshares,
     canQueueTransactions,
+    generateDisabledReason,
+    queueDisabledReason,
     handleGenerateKeyshares,
     handleQueueRegistration,
   };

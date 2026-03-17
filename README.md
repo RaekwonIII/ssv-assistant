@@ -108,8 +108,13 @@ you can set:
 - `VITE_SSV_SUBGRAPH_API_KEY`
 - `VITE_SSV_SUBGRAPH_ENDPOINT`
 
+Optional (SSV contract override):
+
+- `VITE_SSV_NETWORK_CONTRACT` (setter contract address override per selected chain)
+
 Notes:
 
+- Frontend env vars must use `VITE_` prefix to be available at runtime.
 - This desktop app runs inside a Tauri WebView, so browser-extension injection
   (`window.ethereum`) is not assumed.
 - WalletConnect is the default and supported wallet transport.

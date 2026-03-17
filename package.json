@@ -12,7 +12,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@ssv-labs/ssv-sdk": "github:ssvlabs/ssv-sdk#v1.0.0",
+    "@ssv-labs/ssv-sdk": "github:ssvlabs/ssv-sdk",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "@walletconnect/ethereum-provider": "^2.23.8",

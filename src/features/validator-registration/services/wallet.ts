@@ -1,5 +1,5 @@
 import { NetworkOption } from "../model/networks";
-import { EIP1193Provider, Eip1193RpcError } from "../model/types";
+import { Address, EIP1193Provider, Eip1193RpcError } from "../model/types";
 import { readErrorMessage } from "../utils/errors";
 
 function chainIdToHex(chainId: number): string {
@@ -26,6 +26,45 @@ export function normalizeChainId(chainId: unknown): number | null {
   }
 
   return null;
+}
+
+export async function verifyProviderSession(args: {
+  provider: EIP1193Provider;
+  expectedAddress?: Address;
+}): Promise<{ accounts: Address[]; chainId: number }> {
+  const accountsRaw = await args.provider.request({ method: "eth_accounts" });
+
+  if (!Array.isArray(accountsRaw) || accountsRaw.length === 0) {
+    throw new Error(
+      "Wallet session is not active. Reconnect your wallet and approve account access.",
+    );
+  }
+
+  const accounts = accountsRaw.map((value) => String(value)) as Address[];
+  const chainIdRaw = await args.provider.request({ method: "eth_chainId" });
+  const chainId = normalizeChainId(chainIdRaw);
+
+  if (chainId === null) {
+    throw new Error("Wallet returned an unsupported chain id.");
+  }
+
+  if (args.expectedAddress) {
+    const expected = args.expectedAddress.toLowerCase();
+    const hasExpected = accounts.some(
+      (account) => account.toLowerCase() === expected,
+    );
+
+    if (!hasExpected) {
+      throw new Error(
+        "Connected wallet session account does not match the selected account. Reconnect your wallet.",
+      );
+    }
+  }
+
+  return {
+    accounts,
+    chainId,
+  };
 }
 
 export async function ensureProviderChain(

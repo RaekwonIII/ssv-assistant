@@ -42,3 +42,18 @@ export function getTxExplorerUrl(
 ): string | null {
   return network.explorerUrl ? `${network.explorerUrl}/tx/${txHash}` : null;
 }
+
+export function getOperatorExplorerUrl(
+  network: NetworkOption,
+  operatorId: string,
+): string | null {
+  if (network.value === "hoodi") {
+    return `https://explorer.hoodi.ssv.network/hoodi/operator/${operatorId}`;
+  }
+
+  if (network.value === "mainnet") {
+    return `https://explorer.ssv.network/mainnet/operator/${operatorId}`;
+  }
+
+  return null;
+}

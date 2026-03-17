@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import {
+  ALLOWED_OPERATOR_COUNTS,
   DEFAULT_OPERATOR_INPUTS,
-  MAX_OPERATOR_COUNT,
-  MIN_REQUIRED_OPERATOR_COUNT,
   validateOperatorInputs,
 } from "../model/operators";
 
@@ -28,27 +27,30 @@ export function useOperatorInputs() {
     );
   };
 
-  const addOperatorInput = () => {
+  const setOperatorCount = (count: number) => {
+    if (
+      !ALLOWED_OPERATOR_COUNTS.includes(
+        count as (typeof ALLOWED_OPERATOR_COUNTS)[number],
+      )
+    ) {
+      return;
+    }
+
     setOperatorInputs((current) => {
-      if (current.length >= MAX_OPERATOR_COUNT) {
+      if (count === current.length) {
         return current;
       }
 
-      return [...current, ""];
+      if (count < current.length) {
+        return current.slice(0, count);
+      }
+
+      return [...current, ...Array.from({ length: count - current.length }, () => "")];
     });
   };
 
-  const removeOperatorInput = (index: number) => {
-    setOperatorInputs((current) => {
-      if (
-        index < MIN_REQUIRED_OPERATOR_COUNT ||
-        current.length <= MIN_REQUIRED_OPERATOR_COUNT
-      ) {
-        return current;
-      }
-
-      return current.filter((_, itemIndex) => itemIndex !== index);
-    });
+  const resetOperatorInputs = () => {
+    setOperatorInputs([...DEFAULT_OPERATOR_INPUTS]);
   };
 
   return {
@@ -57,7 +59,7 @@ export function useOperatorInputs() {
     selectedOperatorIds,
     duplicateOperatorIds,
     updateOperatorInput,
-    addOperatorInput,
-    removeOperatorInput,
+    setOperatorCount,
+    resetOperatorInputs,
   };
 }

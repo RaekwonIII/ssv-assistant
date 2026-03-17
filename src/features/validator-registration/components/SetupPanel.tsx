@@ -1,10 +1,6 @@
 import { ChangeEvent, DragEvent } from "react";
 import { NETWORK_OPTIONS, NetworkValue } from "../model/networks";
-import {
-  ALLOWED_OPERATOR_COUNTS,
-  MAX_OPERATOR_COUNT,
-  MIN_REQUIRED_OPERATOR_COUNT,
-} from "../model/operators";
+import { ALLOWED_OPERATOR_COUNTS } from "../model/operators";
 import { Address, FileParseReport } from "../model/types";
 import { shortenAddress } from "../utils/format";
 
@@ -23,6 +19,7 @@ type SetupPanelProps = {
   privateOperatorIds: string[];
   blockedPrivateOperatorIds: string[];
   walletAddress: Address | null;
+  walletSessionVerified: boolean;
   walletChainId: number | null;
   selectedNetworkLabel: string;
   connectError: string | null;
@@ -34,13 +31,16 @@ type SetupPanelProps = {
   onFileInputChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onKeystorePasswordChange: (value: string) => void;
   onNetworkChange: (value: NetworkValue) => void;
-  onAddOperatorInput: () => void;
+  onOperatorCountChange: (count: number) => void;
   onUpdateOperatorInput: (index: number, value: string) => void;
-  onRemoveOperatorInput: (index: number) => void;
   onToggleWalletConnection: () => void;
 };
 
 export function SetupPanel(props: SetupPanelProps) {
+  const canAccessStep2 = props.keystoreEntriesCount > 0;
+  const canAccessStep3 = canAccessStep2 && props.keystorePassword.trim().length > 0;
+  const canAccessStep4 = canAccessStep3 && props.operatorValidationWarning === null;
+
   return (
     <section className="card setup-card">
       <h2>Setup</h2>
@@ -50,6 +50,10 @@ export function SetupPanel(props: SetupPanelProps) {
       </p>
 
       <div className="field-block">
+        <div className="step-heading">
+          <span className="step-chip">Step 1</span>
+          <strong>Upload Keystores</strong>
+        </div>
         <span className="field-label">Keystore file upload</span>
         <label
           className={`dropzone ${props.isDragging ? "is-dragging" : ""}`}
@@ -98,7 +102,11 @@ export function SetupPanel(props: SetupPanelProps) {
         </p>
       </div>
 
-      <div className="field-block">
+      <div className={`field-block ${canAccessStep2 ? "" : "is-locked"}`}>
+        <div className="step-heading">
+          <span className="step-chip">Step 2</span>
+          <strong>Unlock and Select Network</strong>
+        </div>
         <label className="field-label" htmlFor="keystore-password">
           Keystore password
         </label>
@@ -106,19 +114,24 @@ export function SetupPanel(props: SetupPanelProps) {
           id="keystore-password"
           type="password"
           value={props.keystorePassword}
+          disabled={!canAccessStep2 || props.isGenerating || props.isRegistering}
           onChange={(event) => props.onKeystorePasswordChange(event.target.value)}
           placeholder="Enter keystore password"
           autoComplete="off"
         />
+        {!canAccessStep2 ? (
+          <p className="hint section-lock">Complete Step 1 to unlock this section.</p>
+        ) : null}
       </div>
 
-      <div className="field-block">
+      <div className={`field-block ${canAccessStep2 ? "" : "is-locked"}`}>
         <label className="field-label" htmlFor="network-select">
           Target network
         </label>
         <select
           id="network-select"
           value={props.network}
+          disabled={!canAccessStep2 || props.isGenerating || props.isRegistering}
           onChange={(event) => props.onNetworkChange(event.target.value as NetworkValue)}
         >
           {NETWORK_OPTIONS.map((option) => (
@@ -129,28 +142,30 @@ export function SetupPanel(props: SetupPanelProps) {
         </select>
       </div>
 
-      <div className="field-block">
+      <div className={`field-block ${canAccessStep3 ? "" : "is-locked"}`}>
+        <div className="step-heading">
+          <span className="step-chip">Step 3</span>
+          <strong>Configure Operators</strong>
+        </div>
         <div className="operator-controls">
           <span className="field-label">Operator set IDs</span>
-          <button
-            type="button"
-            className="button secondary operator-add"
-            onClick={props.onAddOperatorInput}
-            disabled={
-              props.operatorInputs.length >= MAX_OPERATOR_COUNT ||
-              props.isGenerating ||
-              props.isRegistering
+          <select
+            className="operator-count-select"
+            value={props.operatorInputs.length}
+            disabled={!canAccessStep3 || props.isGenerating || props.isRegistering}
+            onChange={(event) =>
+              props.onOperatorCountChange(Number.parseInt(event.target.value, 10))
             }
           >
-            + Add operator
-          </button>
+            {ALLOWED_OPERATOR_COUNTS.map((count) => (
+              <option key={count} value={count}>
+                {count} operators
+              </option>
+            ))}
+          </select>
         </div>
         <p className="hint">
           Allowed sizes: {ALLOWED_OPERATOR_COUNTS.join(", ")} operators.
-        </p>
-        <p className="hint">
-          The first {MIN_REQUIRED_OPERATOR_COUNT} operator slots are mandatory and
-          cannot be removed.
         </p>
 
         <div className="operator-input-list">
@@ -168,25 +183,13 @@ export function SetupPanel(props: SetupPanelProps) {
                     isInvalidId || isDuplicateId ? "invalid" : ""
                   }`}
                   value={value}
+                  disabled={!canAccessStep3 || props.isGenerating || props.isRegistering}
                   onChange={(event) =>
                     props.onUpdateOperatorInput(index, event.target.value)
                   }
                   placeholder={`Operator ID #${index + 1}`}
                   inputMode="numeric"
                 />
-                <button
-                  type="button"
-                  className="button secondary operator-remove"
-                  onClick={() => props.onRemoveOperatorInput(index)}
-                  disabled={
-                    index < MIN_REQUIRED_OPERATOR_COUNT ||
-                    props.operatorInputs.length <= MIN_REQUIRED_OPERATOR_COUNT ||
-                    props.isGenerating ||
-                    props.isRegistering
-                  }
-                >
-                  Remove
-                </button>
               </div>
             );
           })}
@@ -194,7 +197,12 @@ export function SetupPanel(props: SetupPanelProps) {
 
         {props.operatorValidationWarning ? (
           <p className="error-text">
-            {props.operatorValidationWarning} Add or remove operators to continue.
+            {props.operatorValidationWarning} Adjust the operator count or IDs to continue.
+          </p>
+        ) : null}
+        {!canAccessStep3 ? (
+          <p className="hint section-lock">
+            Complete Step 2 to unlock operator configuration.
           </p>
         ) : null}
 
@@ -211,14 +219,18 @@ export function SetupPanel(props: SetupPanelProps) {
         ) : null}
       </div>
 
-      <div className="field-block wallet-block">
+      <div className={`field-block wallet-block ${canAccessStep4 ? "" : "is-locked"}`}>
+        <div className="step-heading">
+          <span className="step-chip">Step 4</span>
+          <strong>Connect Wallet</strong>
+        </div>
         <span className="field-label">Wallet connection (WalletConnect)</span>
         <div className="wallet-row">
           <button
             type="button"
             className="button secondary"
             onClick={props.onToggleWalletConnection}
-            disabled={props.isGenerating || props.isRegistering}
+            disabled={!canAccessStep4 || props.isGenerating || props.isRegistering}
           >
             {props.walletAddress
               ? "Disconnect wallet"
@@ -237,6 +249,16 @@ export function SetupPanel(props: SetupPanelProps) {
         {props.walletChainId !== null && props.walletAddress ? (
           <p className="hint">
             Wallet chain ID: {props.walletChainId} ({props.selectedNetworkLabel})
+          </p>
+        ) : null}
+        {props.walletAddress ? (
+          <p className="hint">
+            Session check: {props.walletSessionVerified ? "verified" : "not verified"}
+          </p>
+        ) : null}
+        {!canAccessStep4 ? (
+          <p className="hint section-lock">
+            Enter password and fix operator input warnings before connecting.
           </p>
         ) : null}
         {props.connectError ? <p className="error-text">{props.connectError}</p> : null}

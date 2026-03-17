@@ -1,18 +1,30 @@
 import { useRef, useState } from "react";
 import { NETWORK_OPTIONS, NetworkOption } from "../model/networks";
-import { Address, ActivityLevel, EIP1193Provider } from "../model/types";
+import {
+  Address,
+  ActivityLevel,
+  EIP1193Provider,
+  WalletActionPrompt,
+} from "../model/types";
 import {
   WalletConnectProvider,
   loadViemRuntime,
   loadWalletConnectRuntime,
 } from "../services/runtime";
-import { normalizeChainId } from "../services/wallet";
+import { normalizeChainId, verifyProviderSession } from "../services/wallet";
 import { readErrorMessage } from "../utils/errors";
 import { shortenAddress } from "../utils/format";
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 type UseWalletConnectionArgs = {
   appendActivity: (level: ActivityLevel, message: string) => void;
   onDisconnect?: () => void;
+  setWalletActionPrompt?: (prompt: WalletActionPrompt | null) => void;
 };
 
 export function useWalletConnection(args: UseWalletConnectionArgs) {
@@ -21,6 +33,7 @@ export function useWalletConnection(args: UseWalletConnectionArgs) {
   const [walletProvider, setWalletProvider] =
     useState<EIP1193Provider | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [walletSessionVerified, setWalletSessionVerified] = useState(false);
 
   const providerRef = useRef<WalletConnectProvider | null>(null);
   const listenersAttachedRef = useRef(false);
@@ -30,6 +43,7 @@ export function useWalletConnection(args: UseWalletConnectionArgs) {
     setWalletAddress(null);
     setWalletChainId(null);
     setWalletProvider(null);
+    setWalletSessionVerified(false);
   };
 
   const handleAccountsChanged = async (accountsValue: unknown) => {
@@ -44,11 +58,13 @@ export function useWalletConnection(args: UseWalletConnectionArgs) {
       const viemRuntime = await loadViemRuntime();
       const nextAddress = viemRuntime.getAddress(String(accountsValue[0]));
       setWalletAddress(nextAddress);
+      setWalletSessionVerified(true);
       args.appendActivity(
         "info",
         `Active wallet account changed to ${shortenAddress(nextAddress)}.`,
       );
     } catch (error) {
+      setWalletSessionVerified(false);
       args.appendActivity(
         "error",
         `Failed to parse updated wallet account: ${readErrorMessage(error)}`,
@@ -113,13 +129,18 @@ export function useWalletConnection(args: UseWalletConnectionArgs) {
       projectId,
       optionalChains,
       showQrModal: true,
+      // With optionalChains, ethereum-provider negotiates tx/signing methods
+      // from `optionalMethods` (not `methods`).
       methods: [
         "eth_accounts",
         "eth_requestAccounts",
-        "eth_sendTransaction",
-        "personal_sign",
       ],
       optionalMethods: [
+        "eth_sendTransaction",
+        "wallet_sendTransaction",
+        "wallet_sendCalls",
+        "wallet_getCapabilities",
+        "personal_sign",
         "wallet_switchEthereumChain",
         "wallet_addEthereumChain",
       ],
@@ -145,6 +166,12 @@ export function useWalletConnection(args: UseWalletConnectionArgs) {
     setConnectError(null);
 
     try {
+      args.setWalletActionPrompt?.({
+        title: "Wallet approval required",
+        message:
+          "Approve the WalletConnect request in your wallet app on your phone.",
+      });
+
       const viemRuntime = await loadViemRuntime();
       const provider = await initializeWalletConnectProvider();
 
@@ -165,15 +192,47 @@ export function useWalletConnection(args: UseWalletConnectionArgs) {
       const connected = viemRuntime.getAddress(accounts[0]);
       const chainIdRaw = await provider.request({ method: "eth_chainId" });
       const parsedChainId = normalizeChainId(chainIdRaw);
+      const { chainId: verifiedChainId } = await verifyProviderSession({
+        provider,
+        expectedAddress: connected,
+      });
+      const txMethods = new Set(
+        Object.values(
+          (
+            provider as {
+              session?: {
+                namespaces?: Record<string, { methods?: string[] }>;
+              };
+            }
+          ).session?.namespaces ?? {},
+        ).flatMap((namespace) => namespace.methods ?? []),
+      );
+      const canSendTransactions =
+        txMethods.has("eth_sendTransaction") ||
+        txMethods.has("wallet_sendTransaction") ||
+        txMethods.has("wallet_sendCalls");
+
+      if (!canSendTransactions) {
+        throw new Error(
+          "Connected wallet session does not allow transaction methods (eth_sendTransaction/wallet_sendTransaction). Reconnect and approve transaction permissions, or use a different wallet.",
+        );
+      }
 
       setWalletAddress(connected);
-      setWalletChainId(parsedChainId);
+      setWalletChainId(parsedChainId ?? verifiedChainId);
       setWalletProvider(provider);
+      setWalletSessionVerified(true);
 
       args.appendActivity(
         "success",
-        `Connected ${shortenAddress(connected)} via WalletConnect on ${network.label}.`,
+        `Connected ${shortenAddress(connected)} via WalletConnect on ${network.label}. Session verified.`,
       );
+      args.setWalletActionPrompt?.({
+        title: "Wallet connected",
+        message: "Session verified and ready for transaction requests.",
+        state: "success",
+      });
+      await wait(700);
 
       if (parsedChainId !== null && parsedChainId !== network.chainId) {
         args.appendActivity(
@@ -193,8 +252,11 @@ export function useWalletConnection(args: UseWalletConnectionArgs) {
         ? "Wallet rejected one or more requested methods during WalletConnect session setup. This usually means the wallet does not support the requested capabilities. Try reconnecting with a different wallet app or update MetaMask mobile."
         : message;
 
+      setWalletSessionVerified(false);
       setConnectError(connectMessage);
       args.appendActivity("error", connectMessage);
+    } finally {
+      args.setWalletActionPrompt?.(null);
     }
   };
 
@@ -220,6 +282,7 @@ export function useWalletConnection(args: UseWalletConnectionArgs) {
     }
 
     setConnectError(null);
+    args.setWalletActionPrompt?.(null);
   };
 
   const toggleWalletConnection = (network: NetworkOption) => {
@@ -235,6 +298,7 @@ export function useWalletConnection(args: UseWalletConnectionArgs) {
     walletAddress,
     walletChainId,
     walletProvider,
+    walletSessionVerified,
     connectError,
     setWalletChainId,
     connectWallet,
