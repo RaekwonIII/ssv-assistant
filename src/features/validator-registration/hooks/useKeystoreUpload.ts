@@ -76,6 +76,19 @@ export function useKeystoreUpload(args: UseKeystoreUploadArgs) {
     setIsDragging(false);
   };
 
+  const removeUploadedFileAtIndex = async (index: number) => {
+    if (index < 0 || index >= selectedFiles.length) {
+      return;
+    }
+
+    const nextFiles = selectedFiles.filter((_, fileIndex) => fileIndex !== index);
+    await parseSelectedFiles(nextFiles);
+  };
+
+  const clearUploadedFiles = () => {
+    resetUploads();
+  };
+
   const resetUploads = () => {
     latestUploadTokenRef.current += 1;
     setSelectedFiles([]);
@@ -93,6 +106,8 @@ export function useKeystoreUpload(args: UseKeystoreUploadArgs) {
     onDrop,
     onDragOver,
     onDragLeave,
+    removeUploadedFileAtIndex,
+    clearUploadedFiles,
     resetUploads,
   };
 }

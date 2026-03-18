@@ -1,4 +1,4 @@
-import { ChangeEvent, DragEvent } from "react";
+import { ChangeEvent, DragEvent, useEffect, useRef } from "react";
 import { NETWORK_OPTIONS, NetworkValue } from "../model/networks";
 import { ALLOWED_OPERATOR_COUNTS } from "../model/operators";
 import { Address, FileParseReport } from "../model/types";
@@ -10,11 +10,13 @@ type SetupPanelProps = {
   keystoreEntriesCount: number;
   isDragging: boolean;
   keystorePassword: string;
+  keystorePasswordError: string | null;
   network: NetworkValue;
   operatorInputs: string[];
   operatorValidationWarning: string | null;
   operatorInvalidIndexes: number[];
   duplicateOperatorIds: Set<number>;
+  missingOperatorIds: number[];
   operatorAccessError: string | null;
   privateOperatorIds: string[];
   blockedPrivateOperatorIds: string[];
@@ -29,6 +31,8 @@ type SetupPanelProps = {
   onDragOver: (event: DragEvent<HTMLLabelElement>) => void;
   onDragLeave: (event: DragEvent<HTMLLabelElement>) => void;
   onFileInputChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onRemoveUploadedFileAtIndex: (index: number) => void;
+  onClearUploadedFiles: () => void;
   onKeystorePasswordChange: (value: string) => void;
   onNetworkChange: (value: NetworkValue) => void;
   onOperatorCountChange: (count: number) => void;
@@ -40,6 +44,33 @@ export function SetupPanel(props: SetupPanelProps) {
   const canAccessStep2 = props.keystoreEntriesCount > 0;
   const canAccessStep3 = canAccessStep2 && props.keystorePassword.trim().length > 0;
   const canAccessStep4 = canAccessStep3 && props.operatorValidationWarning === null;
+  const passwordSectionRef = useRef<HTMLDivElement | null>(null);
+  const operatorSectionRef = useRef<HTMLDivElement | null>(null);
+  const previousMissingIdsRef = useRef<string>("");
+
+  useEffect(() => {
+    if (props.keystorePasswordError) {
+      passwordSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }, [props.keystorePasswordError]);
+
+  useEffect(() => {
+    const missingIdsKey = props.missingOperatorIds.join(",");
+    const hasNewMissingIds =
+      missingIdsKey.length > 0 && missingIdsKey !== previousMissingIdsRef.current;
+
+    if (hasNewMissingIds) {
+      operatorSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+
+    previousMissingIdsRef.current = missingIdsKey;
+  }, [props.missingOperatorIds]);
 
   return (
     <section className="card setup-card">
@@ -54,7 +85,19 @@ export function SetupPanel(props: SetupPanelProps) {
           <span className="step-chip">Step 1</span>
           <strong>Upload Keystores</strong>
         </div>
-        <span className="field-label">Keystore file upload</span>
+        <div className="field-row">
+          <span className="field-label">Keystore file upload</span>
+          {props.selectedFiles.length > 0 ? (
+            <button
+              type="button"
+              className="inline-action-button"
+              onClick={props.onClearUploadedFiles}
+              disabled={props.isGenerating || props.isRegistering}
+            >
+              Clear all
+            </button>
+          ) : null}
+        </div>
         <label
           className={`dropzone ${props.isDragging ? "is-dragging" : ""}`}
           onDrop={props.onDrop}
@@ -74,16 +117,28 @@ export function SetupPanel(props: SetupPanelProps) {
           <p className="hint">No keystore files selected yet.</p>
         ) : (
           <ul className="file-list">
-            {props.fileParseReports.map((report) => (
+            {props.fileParseReports.map((report, index) => (
               <li
-                key={report.fileName}
+                key={`${report.fileName}-${index}`}
                 className={`file-item ${report.errors.length > 0 ? "has-error" : ""}`}
               >
                 <div className="file-item-head">
                   <span>{report.fileName}</span>
-                  <span>
-                    {report.entryCount} key{report.entryCount === 1 ? "" : "s"}
-                  </span>
+                  <div className="file-item-actions">
+                    <span>
+                      {report.entryCount} key{report.entryCount === 1 ? "" : "s"}
+                    </span>
+                    <button
+                      type="button"
+                      className="file-remove-button"
+                      onClick={() => props.onRemoveUploadedFileAtIndex(index)}
+                      disabled={props.isGenerating || props.isRegistering}
+                      aria-label={`Remove ${report.fileName}`}
+                      title={`Remove ${report.fileName}`}
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
                 {report.errors.map((error, errorIndex) => (
                   <p
@@ -102,7 +157,10 @@ export function SetupPanel(props: SetupPanelProps) {
         </p>
       </div>
 
-      <div className={`field-block ${canAccessStep2 ? "" : "is-locked"}`}>
+      <div
+        ref={passwordSectionRef}
+        className={`field-block ${canAccessStep2 ? "" : "is-locked"}`}
+      >
         <div className="step-heading">
           <span className="step-chip">Step 2</span>
           <strong>Unlock and Select Network</strong>
@@ -112,13 +170,18 @@ export function SetupPanel(props: SetupPanelProps) {
         </label>
         <input
           id="keystore-password"
+          className={props.keystorePasswordError ? "password-input invalid" : "password-input"}
           type="password"
           value={props.keystorePassword}
           disabled={!canAccessStep2 || props.isGenerating || props.isRegistering}
           onChange={(event) => props.onKeystorePasswordChange(event.target.value)}
           placeholder="Enter keystore password"
           autoComplete="off"
+          aria-invalid={Boolean(props.keystorePasswordError)}
         />
+        {props.keystorePasswordError ? (
+          <p className="error-text">{props.keystorePasswordError}</p>
+        ) : null}
         {!canAccessStep2 ? (
           <p className="hint section-lock">Complete Step 1 to unlock this section.</p>
         ) : null}
@@ -142,7 +205,10 @@ export function SetupPanel(props: SetupPanelProps) {
         </select>
       </div>
 
-      <div className={`field-block ${canAccessStep3 ? "" : "is-locked"}`}>
+      <div
+        ref={operatorSectionRef}
+        className={`field-block ${canAccessStep3 ? "" : "is-locked"}`}
+      >
         <div className="step-heading">
           <span className="step-chip">Step 3</span>
           <strong>Configure Operators</strong>
@@ -168,19 +234,25 @@ export function SetupPanel(props: SetupPanelProps) {
           Allowed sizes: {ALLOWED_OPERATOR_COUNTS.join(", ")} operators.
         </p>
 
-        <div className="operator-input-list">
+        <div
+          className={`operator-input-list ${
+            props.missingOperatorIds.length > 0 ? "has-missing" : ""
+          }`}
+        >
           {props.operatorInputs.map((value, index) => {
             const parsedValue = Number(value.trim());
             const hasNumericValue = Number.isInteger(parsedValue) && parsedValue > 0;
             const isInvalidId = props.operatorInvalidIndexes.includes(index);
             const isDuplicateId =
               hasNumericValue && props.duplicateOperatorIds.has(parsedValue);
+            const isMissingId =
+              hasNumericValue && props.missingOperatorIds.includes(parsedValue);
 
             return (
               <div key={`operator-input-${index}`} className="operator-input-row">
                 <input
                   className={`operator-id-input ${
-                    isInvalidId || isDuplicateId ? "invalid" : ""
+                    isInvalidId || isDuplicateId || isMissingId ? "invalid" : ""
                   }`}
                   value={value}
                   disabled={!canAccessStep3 || props.isGenerating || props.isRegistering}
@@ -189,6 +261,7 @@ export function SetupPanel(props: SetupPanelProps) {
                   }
                   placeholder={`Operator ID #${index + 1}`}
                   inputMode="numeric"
+                  aria-invalid={isInvalidId || isDuplicateId || isMissingId}
                 />
               </div>
             );

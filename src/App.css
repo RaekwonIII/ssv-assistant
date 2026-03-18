@@ -283,8 +283,24 @@ body[data-theme="dark"] .theme-toggle-thumb {
   opacity: 0.74;
 }
 
+.status-banner.is-locked,
+.operator-table.is-locked {
+  opacity: 0.74;
+}
+
 .step-heading {
   display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.step-heading.with-assist {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.step-title {
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
 }
@@ -292,6 +308,17 @@ body[data-theme="dark"] .theme-toggle-thumb {
 .step-heading strong {
   font-size: 0.86rem;
   color: var(--ink);
+}
+
+.step-assist-link {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
+.step-assist-link:hover {
+  text-decoration: underline;
 }
 
 .step-chip {
@@ -316,6 +343,34 @@ body[data-theme="dark"] .theme-toggle-thumb {
   font-size: 0.73rem;
   color: var(--ink-muted);
   font-weight: 600;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.inline-action-button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-strong);
+  color: var(--ink-muted);
+  padding: 0.22rem 0.62rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inline-action-button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  color: var(--ink);
+}
+
+.inline-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 input,
@@ -409,7 +464,42 @@ select:focus {
 .file-item-head {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 0.5rem;
+}
+
+.file-item-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.file-remove-button {
+  width: 1.2rem;
+  height: 1.2rem;
+  border: 1px solid color-mix(in srgb, var(--error) 34%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.file-remove-button:hover:not(:disabled) {
+  color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 62%, var(--line));
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+}
+
+.file-remove-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
 }
 
 .operator-chips {
@@ -444,6 +534,13 @@ select:focus {
   gap: 0.45rem;
 }
 
+.operator-input-list.has-missing {
+  border: 1px solid rgba(154, 43, 30, 0.38);
+  border-radius: 10px;
+  padding: 0.45rem;
+  background: rgba(154, 43, 30, 0.05);
+}
+
 .operator-input-row {
   display: flex;
 }
@@ -453,6 +550,11 @@ select:focus {
 }
 
 .operator-id-input.invalid {
+  border-color: rgba(154, 43, 30, 0.6);
+  background: rgba(154, 43, 30, 0.06);
+}
+
+.password-input.invalid {
   border-color: rgba(154, 43, 30, 0.6);
   background: rgba(154, 43, 30, 0.06);
 }
@@ -591,6 +693,11 @@ select:focus {
 .batch-state.submitting {
   color: #0f4d7c;
   background: rgba(21, 101, 255, 0.14);
+}
+
+.batch-state.pending {
+  color: #845e14;
+  background: rgba(208, 159, 39, 0.2);
 }
 
 .batch-state.confirmed {
@@ -795,6 +902,10 @@ select:focus {
   font-size: 0.79rem;
 }
 
+.operator-focus-hint {
+  margin-top: 0.18rem;
+}
+
 .actions {
   margin-top: 1rem;
   display: flex;
@@ -825,6 +936,9 @@ select:focus {
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   transition:
     transform 160ms ease,
     box-shadow 160ms ease,
@@ -870,6 +984,33 @@ body[data-theme="dark"] .button.secondary:not(:disabled) {
   box-shadow:
     0 0 0 2px color-mix(in srgb, #1f8a4c 32%, transparent),
     0 12px 20px rgba(31, 138, 76, 0.22);
+}
+
+.button.is-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.button-label {
+  position: relative;
+  z-index: 2;
+}
+
+.button-progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 44%;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 34%, transparent) 0%,
+    color-mix(in srgb, var(--accent-warm) 46%, transparent) 100%
+  );
+  animation: button-sweep 1200ms ease-in-out infinite;
 }
 
 .step-list {
@@ -970,7 +1111,7 @@ body[data-theme="dark"] .button.secondary:not(:disabled) {
 }
 
 .wallet-modal {
-  width: min(460px, 100%);
+  width: min(100%, calc(100vw - 2rem));
   border: 1px solid var(--line);
   background: var(--panel);
   border-radius: 14px;
@@ -980,6 +1121,14 @@ body[data-theme="dark"] .button.secondary:not(:disabled) {
   flex-direction: column;
   gap: 0.45rem;
   animation: rise-up 160ms ease both;
+}
+
+.wallet-modal.is-compact {
+  max-width: 460px;
+}
+
+.wallet-modal.is-wide {
+  max-width: 560px;
 }
 
 .wallet-modal-header {
@@ -998,6 +1147,50 @@ body[data-theme="dark"] .button.secondary:not(:disabled) {
   margin: 0;
   color: var(--ink-muted);
   font-size: 0.9rem;
+}
+
+.wallet-modal-detail {
+  font-size: 0.84rem;
+}
+
+.wallet-modal-tx {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.42rem 0.55rem;
+  background: var(--surface-soft);
+}
+
+.wallet-modal-tx span {
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.wallet-modal-tx code,
+.wallet-modal-tx a {
+  display: inline;
+  min-width: 0;
+  font-family: "Inconsolata", "Consolas", monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+  text-decoration: none;
+  word-break: break-all;
+  line-height: 1.35;
+}
+
+.wallet-modal-tx a:hover {
+  text-decoration: underline;
+}
+
+.wallet-modal-action {
+  align-self: flex-start;
 }
 
 .wallet-modal-spinner {
@@ -1045,6 +1238,15 @@ body[data-theme="dark"] .button.secondary:not(:disabled) {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes button-sweep {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(240%);
   }
 }
 

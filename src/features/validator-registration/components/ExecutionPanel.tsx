@@ -64,12 +64,20 @@ export function ExecutionPanel(props: ExecutionPanelProps) {
   const validationSummary = props.validationSummary;
   const generateButtonClass = `button ${
     props.hasGeneratedKeyshares ? "secondary" : "primary"
-  }`;
+  } ${props.isGenerating ? "is-loading" : ""}`;
   const generateButtonLabel = props.isGenerating
     ? "Generating keyshares..."
     : props.hasGeneratedKeyshares
       ? "Regenerate keyshares"
       : "Generate keyshares";
+  const hasValidDepositValue =
+    props.depositAmountEth.trim().length > 0 &&
+    Number.isFinite(Number(props.depositAmountEth)) &&
+    Number(props.depositAmountEth) >= 0;
+  const canAccessStep5 =
+    props.canGenerateKeyshares || props.hasGeneratedKeyshares || props.isGenerating;
+  const canAccessStep6 = props.hasGeneratedKeyshares;
+  const canAccessStep7 = canAccessStep6 && hasValidDepositValue;
 
   return (
     <section className="card planner-card">
@@ -106,26 +114,9 @@ export function ExecutionPanel(props: ExecutionPanelProps) {
         </article>
       </div>
 
-      <div className="field-block">
+      <div className={`field-block ${canAccessStep5 ? "" : "is-locked"}`}>
         <div className="step-heading">
           <span className="step-chip">Step 5</span>
-          <strong>Set Deposit Amount</strong>
-        </div>
-        <label className="field-label" htmlFor="deposit-amount">
-          Deposit amount per transaction (ETH)
-        </label>
-        <input
-          id="deposit-amount"
-          type="text"
-          value={props.depositAmountEth}
-          onChange={(event) => props.onDepositAmountChange(event.target.value)}
-          placeholder="0.0"
-        />
-      </div>
-
-      <div className="field-block">
-        <div className="step-heading">
-          <span className="step-chip">Step 6</span>
           <strong>Generate Keyshares</strong>
         </div>
         <button
@@ -133,8 +124,12 @@ export function ExecutionPanel(props: ExecutionPanelProps) {
           className={generateButtonClass}
           disabled={!props.canGenerateKeyshares}
           onClick={props.onGenerateKeyshares}
+          aria-busy={props.isGenerating}
         >
-          {generateButtonLabel}
+          {props.isGenerating ? (
+            <span className="button-progress-fill" aria-hidden="true" />
+          ) : null}
+          <span className="button-label">{generateButtonLabel}</span>
         </button>
         {!props.canGenerateKeyshares && props.generateDisabledReason ? (
           <p className="hint action-hint">{props.generateDisabledReason}</p>
@@ -144,7 +139,9 @@ export function ExecutionPanel(props: ExecutionPanelProps) {
       <div
         className={`status-banner queue-status ${
           hasValidationSummary ? props.registrationPhase : "neutral"
-        } ${isKeysharesReadyState ? "keyshares-ready" : ""}`}
+        } ${isKeysharesReadyState ? "keyshares-ready" : ""} ${
+          canAccessStep6 ? "" : "is-locked"
+        }`}
       >
         <span>{isKeysharesReadyState ? "Keyshares" : "Validation"}</span>
         <strong>
@@ -170,7 +167,7 @@ export function ExecutionPanel(props: ExecutionPanelProps) {
         ) : null}
       </div>
 
-      <div className="operator-table">
+      <div className={`operator-table ${canAccessStep6 ? "" : "is-locked"}`}>
         <div className="queue-header">
           <span>Fetched operators</span>
         </div>
@@ -215,7 +212,38 @@ export function ExecutionPanel(props: ExecutionPanelProps) {
         )}
       </div>
 
-      <div className="field-block">
+      <div className={`field-block ${canAccessStep6 ? "" : "is-locked"}`}>
+        <div className="step-heading with-assist">
+          <div className="step-title">
+            <span className="step-chip">Step 6</span>
+            <strong>Set Deposit Amount</strong>
+          </div>
+          <a
+            href="https://ssv-eth-forecasting.vercel.app/"
+            target="_blank"
+            rel="noreferrer"
+            className="step-assist-link"
+          >
+            Not sure how much to deposit?
+          </a>
+        </div>
+        <label className="field-label" htmlFor="deposit-amount">
+          Deposit amount per transaction (ETH)
+        </label>
+        <input
+          id="deposit-amount"
+          type="text"
+          value={props.depositAmountEth}
+          disabled={!canAccessStep6 || props.isGenerating || props.isRegistering}
+          onChange={(event) => props.onDepositAmountChange(event.target.value)}
+          placeholder="0.0"
+        />
+        {!canAccessStep6 ? (
+          <p className="hint section-lock">Complete Step 5 to unlock this section.</p>
+        ) : null}
+      </div>
+
+      <div className={`field-block ${canAccessStep7 ? "" : "is-locked"}`}>
         <div className="step-heading">
           <span className="step-chip">Step 7</span>
           <strong>Queue Transactions</strong>
@@ -238,6 +266,9 @@ export function ExecutionPanel(props: ExecutionPanelProps) {
         !props.canQueueTransactions &&
         props.queueDisabledReason ? (
           <p className="hint action-hint">{props.queueDisabledReason}</p>
+        ) : null}
+        {!canAccessStep7 ? (
+          <p className="hint section-lock">Complete Step 6 to unlock this section.</p>
         ) : null}
       </div>
 
@@ -301,10 +332,6 @@ export function ExecutionPanel(props: ExecutionPanelProps) {
         ))}
       </ul>
 
-      <p className="footnote">
-        Queue behavior: wait for each transaction receipt before sending the next
-        batch to avoid nonce conflicts and preserve deterministic retry.
-      </p>
     </section>
   );
 }

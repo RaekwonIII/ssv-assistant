@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NetworkOption } from "../model/networks";
+import { getTxExplorerUrl, NetworkOption } from "../model/networks";
 import { OperatorSelectionValidation } from "../model/operators";
 import {
   Address,
@@ -7,10 +7,12 @@ import {
   Batch,
   EIP1193Provider,
   GeneratedKeyshare,
+  Hash,
   KeystoreEntry,
   OperatorDetails,
   OperatorSnapshot,
   RuntimeSdk,
+  RuntimeChain,
   ValidationSummary,
   WalletActionPrompt,
 } from "../model/types";
@@ -26,6 +28,10 @@ function wait(ms: number): Promise<void> {
     setTimeout(resolve, ms);
   });
 }
+
+const KEYSHARE_GENERATION_CHUNK_SIZE = 2;
+const TX_CONFIRMATION_TIMEOUT_MS = 60_000;
+const TX_PENDING_RECHECK_MS = 12_000;
 
 function parseDepositAmount(
   input: string,
@@ -63,6 +69,7 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
   const [blockedPrivateOperatorIds, setBlockedPrivateOperatorIds] = useState<
     string[]
   >([]);
+  const [missingOperatorIds, setMissingOperatorIds] = useState<number[]>([]);
   const [operatorAccessError, setOperatorAccessError] = useState<string | null>(
     null,
   );
@@ -75,25 +82,26 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
   const [queueBatches, setQueueBatches] = useState<Batch[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [keystorePasswordError, setKeystorePasswordError] = useState<
+    string | null
+  >(null);
   const [registrationPhase, setRegistrationPhase] = useState<
     "idle" | "running" | "completed" | "failed"
   >("idle");
-  const [generationError, setGenerationError] = useState<string | null>(null);
-  const [registrationError, setRegistrationError] = useState<string | null>(null);
 
   const clearExecutionState = () => {
     setGeneratedKeyshares([]);
     setValidationSummary(null);
     setQueueBatches([]);
+    setKeystorePasswordError(null);
     setRegistrationPhase("idle");
-    setGenerationError(null);
-    setRegistrationError(null);
   };
 
   const clearOperatorState = () => {
     setOperatorSnapshot(null);
     setPrivateOperatorIds([]);
     setBlockedPrivateOperatorIds([]);
+    setMissingOperatorIds([]);
     setOperatorAccessError(null);
   };
 
@@ -172,9 +180,10 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
     );
 
     if (missingOperatorIds.length > 0) {
-      throw new Error(
-        `Failed to fetch data for operator IDs: ${missingOperatorIds.join(", ")}.`,
-      );
+      const message = `Failed to fetch data for operator IDs: ${missingOperatorIds.join(", ")}.`;
+      setMissingOperatorIds(missingOperatorIds);
+      setOperatorAccessError(message);
+      throw new Error(message);
     }
 
     const orderedOperators = args.selectedOperatorIds.map(
@@ -216,6 +225,7 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
     }
 
     setOperatorAccessError(null);
+    setMissingOperatorIds([]);
 
     if (accessReport.privateOperatorIds.length > 0) {
       args.appendActivity(
@@ -246,6 +256,9 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
     args.walletProvider !== null &&
     args.operatorValidation.isValid &&
     args.maxKeysPerTx > 0 &&
+    !queueBatches.some(
+      (batch) => batch.status === "submitting" || batch.status === "pending",
+    ) &&
     !isGenerating &&
     !isRegistering;
 
@@ -282,6 +295,12 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
       );
     }
     if (args.maxKeysPerTx <= 0) return "Operator count does not map to a batch rule.";
+    if (queueBatches.some((batch) => batch.status === "pending")) {
+      return "A transaction is pending confirmation. Use 'Check now' in the modal.";
+    }
+    if (queueBatches.some((batch) => batch.status === "submitting")) {
+      return "A transaction is currently being submitted.";
+    }
     if (isGenerating) return "Wait for keyshare generation to finish.";
     if (isRegistering) return "Registration queue is already running.";
     return null;
@@ -292,11 +311,9 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
       return;
     }
 
-    setGenerationError(null);
-    setRegistrationError(null);
-    setIsGenerating(true);
     clearExecutionState();
     clearOperatorState();
+    setIsGenerating(true);
 
     try {
       const { sdk } = await createSdkContext();
@@ -312,14 +329,34 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
         `Generating keyshares for ${args.keystoreEntries.length} validator keys with ${args.selectedOperatorIds.length} operators.`,
       );
 
-      const generated = await sdk.utils.generateKeyShares({
-        keystore: args.keystoreEntries.map((entry) => entry.serialized),
-        keystorePassword: args.keystorePassword,
-        operatorKeys: operators.map((operator) => operator.publicKey),
-        operatorIds: args.selectedOperatorIds,
-        ownerAddress: args.walletAddress!,
-        nonce: ownerNonce,
-      });
+      const generated: GeneratedKeyshare[] = [];
+      const keystores = args.keystoreEntries.map((entry) => entry.serialized);
+
+      for (
+        let offset = 0;
+        offset < keystores.length;
+        offset += KEYSHARE_GENERATION_CHUNK_SIZE
+      ) {
+        const keystoreChunk = keystores.slice(
+          offset,
+          offset + KEYSHARE_GENERATION_CHUNK_SIZE,
+        );
+        const generatedChunk = await sdk.utils.generateKeyShares({
+          keystore: keystoreChunk,
+          keystorePassword: args.keystorePassword,
+          operatorKeys: operators.map((operator) => operator.publicKey),
+          operatorIds: args.selectedOperatorIds,
+          ownerAddress: args.walletAddress!,
+          nonce: ownerNonce + offset,
+        });
+
+        generated.push(...generatedChunk);
+        const completed = Math.min(offset + keystoreChunk.length, keystores.length);
+
+        if (completed < keystores.length) {
+          await wait(0);
+        }
+      }
 
       const validation = await sdk.utils.validateSharesPreRegistration({
         keyshares: generated,
@@ -347,9 +384,9 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
       }
 
       setGeneratedKeyshares(generated);
-      setQueueBatches(createBatchPlan(generated.length, args.maxKeysPerTx));
-
-      const totalBatches = createBatchPlan(generated.length, args.maxKeysPerTx).length;
+      const plannedBatches = createBatchPlan(generated.length, args.maxKeysPerTx);
+      setQueueBatches(plannedBatches);
+      const totalBatches = plannedBatches.length;
       args.appendActivity(
         "success",
         `Generated and validated ${generated.length} keyshares. Ready to submit ${totalBatches} transaction batch${
@@ -358,8 +395,15 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
       );
     } catch (error) {
       const message = readErrorMessage(error);
-      setGenerationError(message);
+      const normalizedMessage = message.toLowerCase();
+      const isInvalidPasswordError =
+        normalizedMessage.includes("invalid password") ||
+        normalizedMessage.includes("mac mismatch") ||
+        normalizedMessage.includes("bad decrypt");
       clearExecutionState();
+      if (isInvalidPasswordError) {
+        setKeystorePasswordError("Invalid keystore password.");
+      }
       args.appendActivity("error", `Keyshare generation failed: ${message}`);
     } finally {
       setIsGenerating(false);
@@ -379,18 +423,133 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
     );
   };
 
+  const isTransactionConfirmationTimeout = (error: unknown): boolean => {
+    const message = readErrorMessage(error).toLowerCase();
+    return (
+      message.includes("timed out while waiting for transaction with hash") &&
+      message.includes("to be confirmed")
+    );
+  };
+
+  const isTransactionReceiptNotFound = (error: unknown): boolean => {
+    const message = readErrorMessage(error).toLowerCase();
+    return (
+      message.includes("receipt for transaction") &&
+      message.includes("could not be found")
+    );
+  };
+
+  const isRetryableRpcError = (error: unknown): boolean => {
+    const message = readErrorMessage(error).toLowerCase();
+    return (
+      message.includes("rpc request failed") ||
+      message.includes("network request failed") ||
+      message.includes("failed to fetch") ||
+      message.includes("fetch failed") ||
+      message.includes("socket hang up") ||
+      message.includes("timeout")
+    );
+  };
+
+  const waitForTransactionConfirmation = async (input: {
+    publicClient: {
+      waitForTransactionReceipt: (input: {
+        hash: Hash;
+        timeout?: number;
+      }) => Promise<{ status: string }>;
+      getTransactionReceipt: (input: {
+        hash: Hash;
+      }) => Promise<{ status: string }>;
+    };
+    chain: RuntimeChain;
+    txHash: Hash;
+    batchId: number;
+    totalBatches: number;
+  }) => {
+    try {
+      return await input.publicClient.waitForTransactionReceipt({
+        hash: input.txHash,
+        timeout: TX_CONFIRMATION_TIMEOUT_MS,
+      });
+    } catch (error) {
+      if (!isTransactionConfirmationTimeout(error) && !isRetryableRpcError(error)) {
+        throw error;
+      }
+    }
+
+    updateBatchStatus(input.batchId, { status: "pending" });
+    args.appendActivity(
+      "info",
+      `Batch ${input.batchId}/${input.totalBatches} is still pending. Keeping the queue open and rechecking automatically.`,
+    );
+
+    const txUrl = getTxExplorerUrl(args.selectedNetwork, input.txHash);
+    let triggerManualCheck: (() => void) | null = null;
+
+    const onManualCheck = () => {
+      triggerManualCheck?.();
+    };
+
+    while (true) {
+      try {
+        return await input.publicClient.getTransactionReceipt({
+          hash: input.txHash,
+        });
+      } catch (error) {
+        if (!isTransactionReceiptNotFound(error) && !isRetryableRpcError(error)) {
+          throw error;
+        }
+      }
+
+      args.setWalletActionPrompt?.({
+        title: "Transaction pending",
+        message: `Batch ${input.batchId}/${input.totalBatches} is still pending on ${input.chain.name}.`,
+        detail: "This is taking longer than usual due to network congestion.",
+        state: "pending",
+        txHash: input.txHash,
+        txUrl,
+        actionLabel: "Check now",
+        onAction: onManualCheck,
+      });
+
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          triggerManualCheck = null;
+          resolve();
+        }, TX_PENDING_RECHECK_MS);
+
+        triggerManualCheck = () => {
+          clearTimeout(timer);
+          triggerManualCheck = null;
+          resolve();
+        };
+      });
+    }
+  };
+
   const handleQueueRegistration = async () => {
     if (!canQueueTransactions) {
       return;
     }
 
-    setRegistrationError(null);
     setRegistrationPhase("running");
     setIsRegistering(true);
 
     try {
       const viemRuntime = await loadViemRuntime();
       const { sdk, chain } = await createSdkContext();
+      const publicClient = viemRuntime.createPublicClient({
+        chain,
+        transport: viemRuntime.http(chain.rpcUrls.default.http[0]),
+      }) as {
+        waitForTransactionReceipt: (input: {
+          hash: Hash;
+          timeout?: number;
+        }) => Promise<{ status: string }>;
+        getTransactionReceipt: (input: {
+          hash: Hash;
+        }) => Promise<{ status: string }>;
+      };
       const depositAmount = parseDepositAmount(
         args.depositAmountEth,
         viemRuntime.parseEther,
@@ -433,9 +592,18 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
         args.setWalletActionPrompt?.({
           title: "Transaction submitted",
           message: `Batch ${batchId}/${shareChunks.length} submitted. Waiting for on-chain confirmation.`,
+          state: "pending",
+          txHash: transaction.hash,
+          txUrl: getTxExplorerUrl(args.selectedNetwork, transaction.hash),
         });
 
-        const receipt = await transaction.wait();
+        const receipt = await waitForTransactionConfirmation({
+          publicClient,
+          chain,
+          txHash: transaction.hash,
+          batchId,
+          totalBatches: shareChunks.length,
+        });
 
         if (receipt.status !== "success") {
           throw new Error(`Batch ${batchId} reverted on-chain.`);
@@ -467,7 +635,6 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
       await wait(900);
     } catch (error) {
       const message = formatRegistrationQueueError(error);
-      setRegistrationError(message);
       setRegistrationPhase("failed");
 
       setQueueBatches((current) => {
@@ -499,15 +666,15 @@ export function useRegistrationFlow(args: UseRegistrationFlowArgs) {
     operatorSnapshot,
     privateOperatorIds,
     blockedPrivateOperatorIds,
+    missingOperatorIds,
     operatorAccessError,
     generatedKeyshares,
     validationSummary,
     queueBatches,
     isGenerating,
     isRegistering,
+    keystorePasswordError,
     registrationPhase,
-    generationError,
-    registrationError,
     canGenerateKeyshares,
     canQueueTransactions,
     generateDisabledReason,

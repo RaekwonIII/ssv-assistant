@@ -48,6 +48,11 @@ export type WalletActionPrompt = {
   title: string;
   message: string;
   state?: "pending" | "success";
+  detail?: string;
+  txHash?: Hash;
+  txUrl?: string | null;
+  actionLabel?: string;
+  onAction?: () => void;
 };
 
 export type KeystoreEntry = {
@@ -94,6 +99,7 @@ export type BatchStatus =
   | "ready"
   | "queued"
   | "submitting"
+  | "pending"
   | "confirmed"
   | "failed";
 

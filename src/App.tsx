@@ -21,6 +21,7 @@ function App() {
   const [keystorePassword, setKeystorePassword] = useState("");
   const [depositAmountEth, setDepositAmountEth] = useState("0");
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [isZeroDepositConfirmOpen, setIsZeroDepositConfirmOpen] = useState(false);
   const [walletActionPrompt, setWalletActionPrompt] =
     useState<WalletActionPrompt | null>(null);
 
@@ -66,6 +67,8 @@ function App() {
     onDrop,
     onDragOver,
     onDragLeave,
+    removeUploadedFileAtIndex,
+    clearUploadedFiles,
     resetUploads,
   } = useKeystoreUpload({
     appendActivity,
@@ -91,12 +94,14 @@ function App() {
     operatorSnapshot,
     privateOperatorIds,
     blockedPrivateOperatorIds,
+    missingOperatorIds,
     operatorAccessError,
     generatedKeyshares,
     validationSummary,
     queueBatches,
     isGenerating,
     isRegistering,
+    keystorePasswordError,
     registrationPhase,
     canGenerateKeyshares,
     canQueueTransactions,
@@ -139,6 +144,10 @@ function App() {
     depositAmountEth.trim().length > 0 &&
     Number.isFinite(Number(depositAmountEth)) &&
     Number(depositAmountEth) >= 0;
+  const isZeroDepositAmount =
+    depositAmountEth.trim().length > 0 &&
+    Number.isFinite(Number(depositAmountEth)) &&
+    Number(depositAmountEth) === 0;
 
   const setupSteps = [
     { label: "Upload keystores", complete: keystoreEntries.length > 0 },
@@ -155,10 +164,13 @@ function App() {
       complete: walletAddress !== null && walletSessionVerified,
     },
     {
+      label: "Generate keyshares",
+      complete: generatedKeyshares.length > 0,
+    },
+    {
       label: "Set deposit amount",
       complete: hasValidDepositValue,
     },
-    { label: "Generate keyshares", complete: generatedKeyshares.length > 0 },
     {
       label: "Queue registration transactions",
       complete:
@@ -179,6 +191,20 @@ function App() {
     setDepositAmountEth("0");
     clearActivityLog();
     appendActivity("info", "Started a new registration flow.");
+  };
+
+  const handleQueueTransactionsClick = () => {
+    if (canQueueTransactions && isZeroDepositAmount) {
+      setIsZeroDepositConfirmOpen(true);
+      return;
+    }
+
+    void handleQueueRegistration();
+  };
+
+  const confirmQueueWithZeroDeposit = () => {
+    setIsZeroDepositConfirmOpen(false);
+    void handleQueueRegistration();
   };
 
   return (
@@ -213,11 +239,13 @@ function App() {
           keystoreEntriesCount={keystoreEntries.length}
           isDragging={isDragging}
           keystorePassword={keystorePassword}
+          keystorePasswordError={keystorePasswordError}
           network={network}
           operatorInputs={operatorInputs}
           operatorValidationWarning={operatorValidation.warning}
           operatorInvalidIndexes={operatorValidation.invalidIndexes}
           duplicateOperatorIds={duplicateOperatorIds}
+          missingOperatorIds={missingOperatorIds}
           operatorAccessError={operatorAccessError}
           privateOperatorIds={privateOperatorIds}
           blockedPrivateOperatorIds={blockedPrivateOperatorIds}
@@ -232,6 +260,8 @@ function App() {
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
           onFileInputChange={onFileInputChange}
+          onRemoveUploadedFileAtIndex={removeUploadedFileAtIndex}
+          onClearUploadedFiles={clearUploadedFiles}
           onKeystorePasswordChange={setKeystorePassword}
           onNetworkChange={setNetwork}
           onOperatorCountChange={setOperatorCount}
@@ -262,7 +292,7 @@ function App() {
           confirmedBatchCount={confirmedBatchCount}
           canStartNewRun={canStartNewRun}
           onGenerateKeyshares={() => void handleGenerateKeyshares()}
-          onQueueTransactions={() => void handleQueueRegistration()}
+          onQueueTransactions={handleQueueTransactionsClick}
           onStartNewRun={handleStartNewRegistration}
           generateDisabledReason={generateDisabledReason}
           queueDisabledReason={queueDisabledReason}
@@ -297,10 +327,43 @@ function App() {
           </div>
         </div>
       ) : null}
+      {isZeroDepositConfirmOpen ? (
+        <div className="confirm-modal-backdrop" role="presentation">
+          <div className="confirm-modal" role="dialog" aria-modal="true">
+            <h3>Register with 0 ETH deposit?</h3>
+            <p>
+              You are about to register validators with a deposit amount of 0 ETH
+              per transaction.
+            </p>
+            <p>
+              This can increase liquidation risk if the cluster is not funded in
+              time. Continue anyway?
+            </p>
+            <div className="confirm-modal-actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setIsZeroDepositConfirmOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button accent"
+                onClick={confirmQueueWithZeroDeposit}
+              >
+                Continue with 0 ETH
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {walletActionPrompt ? (
         <div className="wallet-modal-backdrop" role="presentation">
           <div
-            className="wallet-modal"
+            className={`wallet-modal ${
+              walletActionPrompt.txHash ? "is-wide" : "is-compact"
+            }`}
             role="dialog"
             aria-modal="true"
             aria-live="polite"
@@ -316,6 +379,30 @@ function App() {
               <h3>{walletActionPrompt.title}</h3>
             </div>
             <p>{walletActionPrompt.message}</p>
+            {walletActionPrompt.detail ? (
+              <p className="wallet-modal-detail">{walletActionPrompt.detail}</p>
+            ) : null}
+            {walletActionPrompt.txHash ? (
+              <div className="wallet-modal-tx">
+                <span>Transaction hash</span>
+                {walletActionPrompt.txUrl ? (
+                  <a href={walletActionPrompt.txUrl} target="_blank" rel="noreferrer">
+                    {walletActionPrompt.txHash}
+                  </a>
+                ) : (
+                  <code>{walletActionPrompt.txHash}</code>
+                )}
+              </div>
+            ) : null}
+            {walletActionPrompt.onAction && walletActionPrompt.actionLabel ? (
+              <button
+                type="button"
+                className="button secondary wallet-modal-action"
+                onClick={walletActionPrompt.onAction}
+              >
+                {walletActionPrompt.actionLabel}
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
